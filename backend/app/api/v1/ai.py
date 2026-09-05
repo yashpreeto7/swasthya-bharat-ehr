@@ -4,13 +4,27 @@ from backend.app.core.database import get_db
 from backend.app.models.entities import User
 from backend.app.schemas.models import (
     ClinicalSummaryResponse, AskEHRRequest, AskEHRResponse,
-    ExplainLabRequest, ExplainLabResponse
+    ExplainLabRequest, ExplainLabResponse,
+    DictationParseRequest, DictationParseResponse
 )
 from backend.app.api.deps import get_current_user, require_roles, verify_consent_access
 from backend.app.services.ai_service import ai_service
 from backend.app.core.audit_logger import log_audit_event
 
 router = APIRouter(prefix="/ai", tags=["AI Clinical Copilot"])
+
+@router.post("/parse-dictation", response_model=DictationParseResponse)
+async def parse_clinical_dictation(
+    req: DictationParseRequest,
+    current_user: User = Depends(require_roles("DOCTOR")),
+):
+    """
+    Parses a clinical speech transcript into structured complaints,
+    authentic SNOMED CT diagnoses, prescriptions, and lab orders.
+    """
+    parsed = ai_service.parse_dictation(req.transcript)
+    return DictationParseResponse(**parsed)
+
 
 @router.get("/summary/{patient_id}", response_model=ClinicalSummaryResponse)
 async def get_clinical_summary(

@@ -32,6 +32,26 @@ async def list_practitioners(
         for p in practitioners
     ]
 
+@router.get("/all-patients")
+async def get_all_patients_directory(
+    current_user: User = Depends(require_roles("DOCTOR")),
+    db: AsyncSession = Depends(get_db)
+):
+    """Allows clinicians to view hospital patient registry for emergency break-glass selection."""
+    stmt = select(Patient).options(selectinload(Patient.user)).limit(50)
+    patients = (await db.execute(stmt)).scalars().all()
+    return [
+        {
+            "patient_id": p.id,
+            "abha_id": p.abha_id,
+            "full_name": p.user.full_name if p.user else "Patient",
+            "gender": p.gender,
+            "date_of_birth": p.date_of_birth,
+            "blood_group": p.blood_group
+        }
+        for p in patients
+    ]
+
 @router.get("/authorized-patients")
 async def get_authorized_patients(
     current_user: User = Depends(require_roles("DOCTOR")),
@@ -48,7 +68,7 @@ async def get_authorized_patients(
         .where(
             and_(
                 Consent.doctor_id == doc.id,
-                Consent.status == "GRANTED",
+                Consent.status.in_(["GRANTED", "EMERGENCY_OVERRIDE"]),
                 Consent.valid_from <= now,
                 Consent.valid_to >= now,
                 Consent.revoked_at.is_(None)
@@ -71,6 +91,8 @@ async def get_authorized_patients(
                 "date_of_birth": c.patient.date_of_birth,
                 "blood_group": c.patient.blood_group,
                 "consent_id": c.id,
+                "status": c.status,
+                "is_emergency_override": c.status == "EMERGENCY_OVERRIDE",
                 "purpose": c.purpose,
                 "categories": c.categories,
                 "valid_until": c.valid_to.isoformat()

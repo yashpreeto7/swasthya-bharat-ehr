@@ -244,4 +244,183 @@ class ClinicalAIService:
             "disclaimer": self.PATIENT_DISCLAIMER
         }
 
+    def parse_dictation(self, transcript: str) -> Dict[str, Any]:
+        """
+        Extracts structured clinical consultation entities from dictated clinical speech:
+        1. Chief Complaint & Reason
+        2. Clinical Narrative Notes
+        3. SNOMED CT Coded Conditions
+        4. Structured Prescriptions (drug, dose, freq, duration)
+        5. Lab Test Requisitions
+        """
+        t = transcript.strip()
+        t_lower = t.lower()
+
+        # 1. Detect Reason
+        reason = "Clinical Consultation"
+        if "presents with" in t_lower:
+            parts = t_lower.split("presents with", 1)[1].split(".")[0].strip()
+            reason = f"Evaluation of {parts.capitalize()}"
+        elif "complaining of" in t_lower:
+            parts = t_lower.split("complaining of", 1)[1].split(".")[0].strip()
+            reason = f"Symptoms of {parts.capitalize()}"
+        elif "follow-up" in t_lower:
+            reason = "Clinical Follow-up & Review"
+        elif "fever" in t_lower:
+            reason = "Acute Febrile Illness Workup"
+        elif "cough" in t_lower:
+            reason = "Respiratory Symptoms Evaluation"
+        elif "chest pain" in t_lower:
+            reason = "Chest Discomfort & Cardiology Review"
+
+        # 2. Extract Conditions from SNOMED catalog
+        conditions = []
+        matched_codes = set()
+        condition_triggers = [
+            ("acute bronchitis", "10509002", "Acute bronchitis", "MODERATE"),
+            ("bronchitis", "10509002", "Acute bronchitis", "MODERATE"),
+            ("type 2 diabetes", "44054006", "Type 2 diabetes mellitus", "CHRONIC"),
+            ("t2dm", "44054006", "Type 2 diabetes mellitus", "CHRONIC"),
+            ("gestational diabetes", "11687002", "Gestational diabetes mellitus", "MODERATE"),
+            ("hypertension", "59621000", "Essential hypertension", "CHRONIC"),
+            ("high blood pressure", "59621000", "Essential hypertension", "CHRONIC"),
+            ("dengue", "38362002", "Dengue fever", "SEVERE"),
+            ("thrombocytopenia", "302215000", "Thrombocytopenia", "SEVERE"),
+            ("asthma", "195967001", "Asthma", "MODERATE"),
+            ("pneumonia", "53084003", "Bacterial pneumonia", "SEVERE"),
+            ("malaria", "61462000", "Malaria", "SEVERE"),
+            ("ischemic heart disease", "53741008", "Coronary arteriosclerosis", "SEVERE"),
+            ("coronary", "53741008", "Coronary arteriosclerosis", "SEVERE"),
+            ("heart attack", "22298006", "Acute myocardial infarction", "SEVERE"),
+            ("myocardial infarction", "22298006", "Acute myocardial infarction", "SEVERE"),
+            ("hypothyroidism", "40930008", "Primary hypothyroidism", "CHRONIC"),
+            ("hyperlipidemia", "55822004", "Hyperlipidemia", "CHRONIC"),
+            ("gerd", "235595009", "Gastroesophageal reflux disease", "MILD"),
+            ("chest pain", "29857009", "Chest pain", "MODERATE"),
+            ("fever", "386661006", "Fever", "MILD"),
+            ("cough", "49727002", "Cough", "MILD"),
+            ("headache", "25064002", "Headache", "MILD"),
+        ]
+
+        for trigger, code, display, severity in condition_triggers:
+            if trigger in t_lower and code not in matched_codes:
+                matched_codes.add(code)
+                conditions.append({
+                    "snomed_code": code,
+                    "display_name": display,
+                    "clinical_status": "ACTIVE",
+                    "severity": severity,
+                    "notes": f"Identified from clinical dictation: '{trigger}'"
+                })
+
+        # 3. Extract Prescriptions
+        prescriptions = []
+        med_catalogs = [
+            ("amoxicillin", "Amoxicillin", "500 mg", "Three times daily after meals", "5 days"),
+            ("azithromycin", "Azithromycin", "500 mg", "Once daily before food", "3 days"),
+            ("paracetamol", "Paracetamol", "650 mg", "SOS (Every 6-8 hours as needed for fever)", "5 days"),
+            ("dolo", "Dolo 650", "650 mg", "SOS (Every 6 hours as needed for fever)", "5 days"),
+            ("metformin", "Metformin Hydrochloride", "500 mg", "Twice daily with meals", "30 days"),
+            ("telmisartan", "Telmisartan", "40 mg", "Once daily in the morning", "30 days"),
+            ("atorvastatin", "Atorvastatin Calcium", "20 mg", "Once daily at bedtime", "30 days"),
+            ("aspirin", "Aspirin (Ecosprin)", "75 mg", "Once daily after lunch", "30 days"),
+            ("metoprolol", "Metoprolol Succinate", "25 mg", "Once daily in the morning", "30 days"),
+            ("levothyroxine", "Levothyroxine Sodium", "75 mcg", "Once daily early morning empty stomach", "30 days"),
+            ("pantoprazole", "Pantoprazole", "40 mg", "Once daily before breakfast", "14 days"),
+            ("insulin", "Regular Human Insulin", "4 units", "Twice daily before meals", "30 days"),
+            ("montelukast", "Montelukast", "10 mg", "Once daily at bedtime", "10 days"),
+            ("cetirizine", "Cetirizine", "10 mg", "Once daily at bedtime", "7 days")
+        ]
+
+        for med_key, med_name, def_dosage, def_freq, def_dur in med_catalogs:
+            if med_key in t_lower:
+                dosage = def_dosage
+                if "1000 mg" in t_lower or "1g" in t_lower:
+                    if med_key == "metformin":
+                        dosage = "1000 mg"
+                elif "500 mg" in t_lower:
+                    dosage = "500 mg"
+                elif "650 mg" in t_lower:
+                    dosage = "650 mg"
+                elif "40 mg" in t_lower:
+                    dosage = "40 mg"
+                elif "20 mg" in t_lower:
+                    dosage = "20 mg"
+
+                frequency = def_freq
+                if "three times daily" in t_lower or "tds" in t_lower:
+                    frequency = "Three times daily after meals"
+                elif "twice daily" in t_lower or "bd" in t_lower:
+                    frequency = "Twice daily after meals"
+                elif "once daily" in t_lower or "od" in t_lower:
+                    frequency = "Once daily"
+                elif "sos" in t_lower or "as needed" in t_lower:
+                    frequency = "SOS (As needed for symptoms)"
+
+                duration = def_dur
+                if "5 days" in t_lower:
+                    duration = "5 days"
+                elif "7 days" in t_lower or "1 week" in t_lower:
+                    duration = "7 days"
+                elif "10 days" in t_lower:
+                    duration = "10 days"
+                elif "14 days" in t_lower or "2 weeks" in t_lower:
+                    duration = "14 days"
+                elif "30 days" in t_lower or "1 month" in t_lower:
+                    duration = "30 days"
+
+                prescriptions.append({
+                    "medication_name": med_name,
+                    "dosage": dosage,
+                    "frequency": frequency,
+                    "duration": duration,
+                    "instructions": "Take as prescribed. Maintain adequate hydration."
+                })
+
+        # 4. Extract Lab Orders
+        lab_orders = []
+        test_catalogs = [
+            (["complete blood count", "cbc", "blood count"], "58800005", "Complete Blood Count (CBC)"),
+            (["platelet", "platelets"], "43789009", "Platelet Count Measurement"),
+            (["hba1c", "glycated hemoglobin"], "43396009", "Hemoglobin A1c Measurement"),
+            (["fasting blood sugar", "blood glucose", "fbs"], "33747003", "Fasting Blood Glucose"),
+            (["lipid profile", "lipid panel"], "396550006", "Comprehensive Lipid Panel"),
+            (["creatinine", "serum creatinine", "kft"], "275711006", "Serum Creatinine & eGFR"),
+            (["liver function", "lft"], "26958001", "Liver Function Tests"),
+            (["dengue ns1", "dengue antigen"], "252275004", "Dengue NS1 Antigen Rapid Test"),
+            (["tsh", "thyroid"], "396560005", "Serum Thyroid Stimulating Hormone (TSH)"),
+            (["urine microalbumin"], "271062006", "Urine Microalbumin & Creatinine Ratio"),
+            (["electrolytes", "serum electrolytes"], "104177005", "Serum Electrolytes Panel")
+        ]
+
+        for synonyms, code, test_name in test_catalogs:
+            if any(syn in t_lower for syn in synonyms):
+                priority = "ROUTINE"
+                if "stat" in t_lower or "immediately" in t_lower:
+                    priority = "STAT"
+                elif "urgent" in t_lower or "repeat" in t_lower:
+                    priority = "URGENT"
+
+                lab_orders.append({
+                    "test_name": test_name,
+                    "test_code": code,
+                    "priority": priority
+                })
+
+        clean_notes = (
+            f"DICTATED CLINICAL ENCOUNTER:\n{t}\n\n"
+            f"Clinical Assessment: {', '.join([c['display_name'] for c in conditions]) or 'Unspecified clinical presentation'}.\n"
+            f"Plan: Prescribed {len(prescriptions)} medication(s), ordered {len(lab_orders)} diagnostic test(s)."
+        )
+
+        return {
+            "reason": reason,
+            "clinical_notes": clean_notes,
+            "conditions": conditions,
+            "prescriptions": prescriptions,
+            "lab_orders": lab_orders,
+            "raw_transcript": t
+        }
+
 ai_service = ClinicalAIService()
+

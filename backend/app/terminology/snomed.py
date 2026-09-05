@@ -42,6 +42,16 @@ SNOMED_CATALOG: Dict[str, SnomedConcept] = {
     "275711006": SnomedConcept(code="275711006", display="Serum creatinine measurement", category="PROCEDURE"),
     "26958001": SnomedConcept(code="26958001", display="Liver function tests", category="PROCEDURE"),
     "252275004": SnomedConcept(code="252275004", display="Dengue NS1 antigen test", category="PROCEDURE"),
+    "43789009": SnomedConcept(code="43789009", display="Platelet count measurement", category="PROCEDURE"),
+    "396560005": SnomedConcept(code="396560005", display="Thyroid stimulating hormone measurement", category="PROCEDURE"),
+    "271062006": SnomedConcept(code="271062006", display="Urine microalbumin measurement", category="PROCEDURE"),
+    "104177005": SnomedConcept(code="104177005", display="Serum electrolytes measurement", category="PROCEDURE"),
+    "53741008": SnomedConcept(code="53741008", display="Coronary arteriosclerosis", category="DISORDER"),
+    "11687002": SnomedConcept(code="11687002", display="Gestational diabetes mellitus", category="DISORDER"),
+    "40930008": SnomedConcept(code="40930008", display="Primary hypothyroidism", category="DISORDER"),
+    "302215000": SnomedConcept(code="302215000", display="Thrombocytopenia", category="DISORDER"),
+    "22298006": SnomedConcept(code="22298006", display="Acute myocardial infarction", category="DISORDER"),
+    "29857009": SnomedConcept(code="29857009", display="Chest pain", category="FINDING"),
 }
 
 class SnomedService:

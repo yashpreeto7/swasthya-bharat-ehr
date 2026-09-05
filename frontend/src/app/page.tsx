@@ -6,8 +6,10 @@ import {
   FileText, CheckCircle2, AlertTriangle, Clock, Calendar, Lock,
   Search, Plus, Sparkles, Send, RefreshCw, ChevronRight, X, Eye, FileCode2,
   Network, ArrowRight, KeyRound, LogIn, LogOut, Check, ChevronDown,
-  Moon, Sun, HelpCircle, HeartPulse, Pill, FileSpreadsheet, ShieldAlert
+  Moon, Sun, HelpCircle, HeartPulse, Pill, FileSpreadsheet, ShieldAlert,
+  Mic, MicOff, Wifi, WifiOff, Radio
 } from "lucide-react";
+import { OfflineQueueManager, QueuedRecord } from "../lib/offlineQueue";
 
 export default function Home() {
   // ── Role & Active View State ──
@@ -88,6 +90,28 @@ export default function Home() {
   const [abdmHiuTransferResult, setAbdmHiuTransferResult] = useState<any>(null);
   const [loadingAbdm, setLoadingAbdm] = useState(false);
 
+  // ── Rural PHC Offline Resilience State ──
+  const [isPhcOnline, setIsPhcOnline] = useState<boolean>(true);
+  const [phcQueue, setPhcQueue] = useState<QueuedRecord[]>([]);
+  const [isSyncingPhc, setIsSyncingPhc] = useState<boolean>(false);
+  const [phcToast, setPhcToast] = useState<string | null>(null);
+
+  // ── Emergency Break-Glass Protocol State ──
+  const [showBreakGlassModal, setShowBreakGlassModal] = useState<boolean>(false);
+  const [allDirectoryPatients, setAllDirectoryPatients] = useState<any[]>([]);
+  const [breakGlassPatientId, setBreakGlassPatientId] = useState<string>("");
+  const [breakGlassJustification, setBreakGlassJustification] = useState<string>("");
+  const [breakGlassType, setBreakGlassType] = useState<string>("ACCIDENT_TRAUMA");
+  const [loadingBreakGlass, setLoadingBreakGlass] = useState<boolean>(false);
+  const [breakGlassError, setBreakGlassError] = useState<string>("");
+  const [breakGlassSuccessNotice, setBreakGlassSuccessNotice] = useState<any>(null);
+
+  // ── Voice-to-SNOMED Dictation State ──
+  const [isDictating, setIsDictating] = useState<boolean>(false);
+  const [dictationTranscript, setDictationTranscript] = useState<string>("");
+  const [loadingDictationParse, setLoadingDictationParse] = useState<boolean>(false);
+  const [dictationSummaryPill, setDictationSummaryPill] = useState<string | null>(null);
+
   // Toggle Dark Mode
   const toggleDarkMode = () => {
     const next = !isDarkMode;
@@ -98,7 +122,17 @@ export default function Home() {
   // Initial load
   useEffect(() => {
     initAuthAndData();
+
+    // Subscribe to Offline Queue updates & Network status
+    const unsubQueue = OfflineQueueManager.subscribe((q) => setPhcQueue([...q]));
+    const unsubNet = OfflineQueueManager.subscribeNetwork((online) => setIsPhcOnline(online));
+
+    return () => {
+      unsubQueue();
+      unsubNet();
+    };
   }, []);
+
 
   const initAuthAndData = async () => {
     try {
@@ -420,6 +454,25 @@ export default function Home() {
         }] : []
       };
 
+      if (!OfflineQueueManager.isOnline()) {
+        OfflineQueueManager.enqueue(
+          "/api/v1/doctors/encounters",
+          "POST",
+          payload,
+          `Encounter: ${payload.reason} (${selectedPatient?.full_name || "Patient"})`,
+          selectedPatient?.full_name
+        );
+        setShowEncounterModal(false);
+        setEncounterReason("");
+        setEncounterNotes("");
+        setSelectedSnomed(null);
+        setRxMedName("");
+        setDictationSummaryPill(null);
+        setPhcToast("PHC Offline Mode: Consultation saved to local queue. Will auto-sync to ABDM when online.");
+        setTimeout(() => setPhcToast(null), 4500);
+        return;
+      }
+
       const res = await fetch("http://localhost:8000/api/v1/doctors/encounters", {
         method: "POST",
         headers: {
@@ -435,6 +488,7 @@ export default function Home() {
         setEncounterNotes("");
         setSelectedSnomed(null);
         setRxMedName("");
+        setDictationSummaryPill(null);
         fetchTimeline(selectedPatientId);
         fetchAuditLogs(tokens.patient);
       }
@@ -442,6 +496,188 @@ export default function Home() {
       console.error(err);
     }
   };
+
+  const fetchAllDirectoryPatients = async (docToken?: string) => {
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/doctors/all-patients", {
+        headers: { Authorization: `Bearer ${docToken || tokens.doctor}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setAllDirectoryPatients(data);
+        if (data.length > 0 && !breakGlassPatientId) {
+          setBreakGlassPatientId(data[0].patient_id);
+        }
+      }
+    } catch (e) {
+      console.error("Error fetching all patients:", e);
+    }
+  };
+
+  const handleBreakGlassSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!breakGlassPatientId) {
+      setBreakGlassError("Please select a patient from the hospital directory.");
+      return;
+    }
+    if (breakGlassJustification.trim().length < 10) {
+      setBreakGlassError("Clinical justification must be at least 10 characters long.");
+      return;
+    }
+    setLoadingBreakGlass(true);
+    setBreakGlassError("");
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/consent/break-glass", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokens.doctor}`
+        },
+        body: JSON.stringify({
+          patient_id: breakGlassPatientId,
+          justification: breakGlassJustification.trim(),
+          emergency_type: breakGlassType
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBreakGlassError(data.detail || "Failed to authorize emergency break-glass consent.");
+        return;
+      }
+
+      setBreakGlassSuccessNotice(data);
+
+      // Refresh doctor's authorized patients list to include newly unlocked patient
+      const pRes = await fetch("http://localhost:8000/api/v1/doctors/authorized-patients", {
+        headers: { Authorization: `Bearer ${tokens.doctor}` }
+      });
+      const pList = await pRes.json();
+      if (Array.isArray(pList)) {
+        setPatients(pList);
+        setSelectedPatientId(breakGlassPatientId);
+        fetchTimeline(breakGlassPatientId, tokens.doctor);
+      }
+
+      // Refresh patient side if active
+      if (tokens.patient) {
+        fetchAuditLogs(tokens.patient);
+        fetchNotifications(tokens.patient);
+        fetchConsents(tokens.patient);
+      }
+
+      setTimeout(() => {
+        setShowBreakGlassModal(false);
+        setBreakGlassSuccessNotice(null);
+        setBreakGlassJustification("");
+      }, 2500);
+    } catch (err: any) {
+      setBreakGlassError(err.message || "Network error while requesting emergency override.");
+    } finally {
+      setLoadingBreakGlass(false);
+    }
+  };
+
+  const handleParseDictation = async (text: string) => {
+    if (!text || text.trim().length < 3) return;
+    setLoadingDictationParse(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/ai/parse-dictation", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${tokens.doctor}`
+        },
+        body: JSON.stringify({ transcript: text })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.reason) setEncounterReason(data.reason);
+        if (data.clinical_notes) setEncounterNotes(data.clinical_notes);
+        if (data.conditions && data.conditions.length > 0) {
+          const firstCond = data.conditions[0];
+          setSelectedSnomed({
+            concept_id: firstCond.snomed_code,
+            display_name: firstCond.display_name
+          });
+        }
+        if (data.prescriptions && data.prescriptions.length > 0) {
+          const firstRx = data.prescriptions[0];
+          setRxMedName(firstRx.medication_name);
+          setRxDosage(firstRx.dosage);
+          setRxFrequency(firstRx.frequency);
+          setRxDuration(firstRx.duration);
+        }
+        const condSummary = data.conditions?.map((c: any) => c.display_name).join(", ") || "None";
+        const rxSummary = data.prescriptions?.map((p: any) => p.medication_name).join(", ") || "None";
+        setDictationSummaryPill(`✨ AI Extracted: ${condSummary} • Rx: ${rxSummary}`);
+      }
+    } catch (err) {
+      console.error("Dictation parse error:", err);
+    } finally {
+      setLoadingDictationParse(false);
+    }
+  };
+
+  const toggleDictation = () => {
+    if (isDictating) {
+      setIsDictating(false);
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      alert("Web Speech API is not supported in this browser. Please use the quick clinical dictation preset chips!");
+      return;
+    }
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.lang = "en-IN";
+      recognition.continuous = false;
+      recognition.interimResults = false;
+
+      recognition.onstart = () => {
+        setIsDictating(true);
+      };
+
+      recognition.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setDictationTranscript(transcript);
+        handleParseDictation(transcript);
+        setIsDictating(false);
+      };
+
+      recognition.onerror = (e: any) => {
+        console.warn("Speech recognition error:", e);
+        setIsDictating(false);
+      };
+
+      recognition.onend = () => {
+        setIsDictating(false);
+      };
+
+      recognition.start();
+    } catch (err) {
+      console.error(err);
+      setIsDictating(false);
+    }
+  };
+
+  const handleSyncOfflineQueue = async () => {
+    setIsSyncingPhc(true);
+    setPhcToast("Synchronizing queued rural PHC encounters to ABDM cloud...");
+    try {
+      const result = await OfflineQueueManager.syncQueue(tokens.doctor);
+      setPhcToast(`Synced ${result.synced} records successfully to ABDM cloud.${result.failed > 0 ? ` (${result.failed} failed)` : ""}`);
+      if (selectedPatientId) {
+        fetchTimeline(selectedPatientId, tokens.doctor);
+      }
+      setTimeout(() => setPhcToast(null), 4000);
+    } catch (e: any) {
+      setPhcToast(`Sync error: ${e.message}`);
+    } finally {
+      setIsSyncingPhc(false);
+    }
+  };
+
 
   const generateAiSummary = async () => {
     if (!selectedPatientId) return;
@@ -841,9 +1077,58 @@ export default function Home() {
 
           </nav>
 
-          {/* ── CONTROLS: DARK MODE & PERSONA SWITCHER ── */}
-          <div className="flex items-center gap-2.5">
+          {/* ── CONTROLS: RURAL PHC OFFLINE, DARK MODE & PERSONA SWITCHER ── */}
+          <div className="flex items-center gap-2">
             
+            {/* Rural PHC Connectivity & Offline Sync Controls */}
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-xs shadow-inner">
+              {isPhcOnline ? (
+                <span className="flex items-center gap-1.5 text-emerald-400 font-semibold text-[11px]">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <Wifi className="w-3.5 h-3.5" />
+                  <span className="hidden xl:inline">PHC Online</span>
+                </span>
+              ) : (
+                <span className="flex items-center gap-1.5 text-amber-400 font-semibold text-[11px]">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                  </span>
+                  <WifiOff className="w-3.5 h-3.5" />
+                  <span>PHC Offline</span>
+                </span>
+              )}
+
+              {/* Simulation Toggle */}
+              <button
+                onClick={() => OfflineQueueManager.setSimulatedOffline(isPhcOnline)}
+                className={`text-[10px] px-1.5 py-0.5 rounded font-mono transition-colors ${
+                  isPhcOnline
+                    ? "bg-slate-700 hover:bg-slate-600 text-slate-300 hover:text-white"
+                    : "bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30"
+                }`}
+                title={isPhcOnline ? "Simulate Rural PHC Intermittent Disconnect" : "Restore Cloud Network Connection"}
+              >
+                {isPhcOnline ? "Simulate Offline" : "Go Online"}
+              </button>
+
+              {/* Sync Queued Records Button */}
+              {phcQueue.length > 0 && (
+                <button
+                  onClick={handleSyncOfflineQueue}
+                  disabled={isSyncingPhc || !isPhcOnline}
+                  className="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-[10px] flex items-center gap-1 disabled:opacity-50 transition-colors shadow-sm"
+                  title="Upload queued consultations directly into ABDM cloud"
+                >
+                  <RefreshCw className={`w-3 h-3 ${isSyncingPhc ? "animate-spin" : ""}`} />
+                  Sync ({phcQueue.length})
+                </button>
+              )}
+            </div>
+
             {/* Dark Mode Toggle */}
             <button
               onClick={toggleDarkMode}
@@ -883,8 +1168,17 @@ export default function Home() {
         </div>
       </header>
 
+      {/* ── Rural PHC Local Toast / Offline Notice Banner ── */}
+      {phcToast && (
+        <div className="bg-indigo-600 text-white text-xs font-medium py-2 px-4 text-center shadow-md flex items-center justify-center gap-2 transition-all">
+          <Activity className="w-4 h-4 animate-spin" />
+          <span>{phcToast}</span>
+        </div>
+      )}
+
       {/* ── MAIN WORKSPACE CONTENT ── */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+
 
         {/* ─────────────────────────────────────────────────────────────
             A. DOCTOR WORKSPACE
@@ -907,6 +1201,16 @@ export default function Home() {
                   </div>
 
                   <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        fetchAllDirectoryPatients();
+                        setShowBreakGlassModal(true);
+                      }}
+                      className="px-3.5 py-2 text-xs flex items-center gap-1.5 rounded-md font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition-all"
+                    >
+                      <ShieldAlert className="w-4 h-4" />
+                      Emergency Break-Glass
+                    </button>
                     <button
                       onClick={() => setShowEncounterModal(true)}
                       className="btn-primary px-3.5 py-2 text-xs flex items-center gap-1.5"
@@ -964,9 +1268,15 @@ export default function Home() {
                           </div>
                           <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
                             <span>{pat.gender}</span>
-                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Consent Active
-                            </span>
+                            {pat.is_emergency_override ? (
+                              <span className="text-rose-600 dark:text-rose-400 font-bold flex items-center gap-1 animate-pulse">
+                                <ShieldAlert className="w-3 h-3" /> Emergency Override
+                              </span>
+                            ) : (
+                              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Consent Active
+                              </span>
+                            )}
                           </div>
                         </div>
                       );
@@ -976,8 +1286,20 @@ export default function Home() {
 
                 {/* Patient Summary Header Card */}
                 {selectedPatient && (
-                  <div className="medical-card p-5 border-l-4 border-l-indigo-600">
+                  <div className={`medical-card p-5 border-l-4 ${selectedPatient.is_emergency_override ? "border-l-rose-600 bg-rose-50/20 dark:bg-rose-950/10" : "border-l-indigo-600"}`}>
+                    {selectedPatient.is_emergency_override && (
+                      <div className="mb-3 p-2.5 rounded-md bg-rose-100/80 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs flex items-center justify-between">
+                        <div className="flex items-center gap-2 font-bold">
+                          <ShieldAlert className="w-4 h-4 text-rose-600 animate-pulse" />
+                          <span>🚨 EMERGENCY BREAK-GLASS PROTOCOL ACTIVE (4-Hour Window)</span>
+                        </div>
+                        <span className="font-mono text-[10px] bg-white dark:bg-slate-900 px-2 py-0.5 rounded text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                          Justification: {selectedPatient.emergency_justification || "Accident / Poly-trauma admission"}
+                        </span>
+                      </div>
+                    )}
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+
                       <div>
                         <div className="flex items-center gap-2.5">
                           <h2 className="text-xl font-bold text-slate-900 dark:text-white">
@@ -2336,6 +2658,114 @@ export default function Home() {
               </button>
             </div>
 
+            {/* ── Voice-to-SNOMED AI Dictation Toolbar ── */}
+            <div className="p-3.5 rounded-xl border border-indigo-100 dark:border-indigo-900/50 bg-gradient-to-r from-indigo-50/70 via-purple-50/40 to-slate-50/60 dark:from-indigo-950/30 dark:via-purple-950/20 dark:to-slate-900/40 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-600 text-white shadow-sm">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900 dark:text-white flex items-center gap-1.5">
+                      Voice-to-SNOMED Clinical Copilot
+                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300">
+                        AI NLP
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">
+                      Dictate clinical findings or click a quick clinical preset chip below:
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={toggleDictation}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm transition-all ${
+                    isDictating
+                      ? "bg-rose-600 text-white animate-pulse"
+                      : "bg-indigo-600 text-white hover:bg-indigo-700 active:scale-95"
+                  }`}
+                  title={isDictating ? "Stop recording speech" : "Start dictating via microphone"}
+                >
+                  {isDictating ? (
+                    <>
+                      <MicOff className="w-3.5 h-3.5" />
+                      <span>Listening...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Mic className="w-3.5 h-3.5" />
+                      <span>Dictate</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* 3 Quick Simulation Presets for Instant One-Click Testing */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  Presets:
+                </span>
+                <button
+                  type="button"
+                  disabled={loadingDictationParse}
+                  onClick={() => {
+                    const text = "Patient presents with acute bronchitis with severe productive cough. Prescribing Amoxicillin 500 mg thrice daily for 7 days.";
+                    setDictationTranscript(text);
+                    handleParseDictation(text);
+                  }}
+                  className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[10px] font-medium text-slate-700 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shadow-2xs"
+                >
+                  🫁 Acute Bronchitis & Amoxicillin
+                </button>
+                <button
+                  type="button"
+                  disabled={loadingDictationParse}
+                  onClick={() => {
+                    const text = "Suspected acute dengue fever with severe thrombocytopenia. Prescribing Paracetamol 650 mg SOS and ordering CBC with platelet count.";
+                    setDictationTranscript(text);
+                    handleParseDictation(text);
+                  }}
+                  className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[10px] font-medium text-slate-700 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shadow-2xs"
+                >
+                  🦟 Dengue & Thrombocytopenia
+                </button>
+                <button
+                  type="button"
+                  disabled={loadingDictationParse}
+                  onClick={() => {
+                    const text = "Routine follow-up for type 2 diabetes mellitus and essential hypertension. Continuing Metformin 500 mg twice daily and Telmisartan 40 mg once daily.";
+                    setDictationTranscript(text);
+                    handleParseDictation(text);
+                  }}
+                  className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[10px] font-medium text-slate-700 dark:text-slate-300 hover:border-indigo-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors shadow-2xs"
+                >
+                  🩺 T2DM & Hypertension
+                </button>
+              </div>
+
+              {loadingDictationParse && (
+                <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 py-1 font-medium animate-pulse">
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  <span>AI extracting SNOMED CT concepts & Rx entities...</span>
+                </div>
+              )}
+
+              {dictationSummaryPill && (
+                <div className="p-2 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-xs text-emerald-800 dark:text-emerald-300 font-medium flex items-center justify-between shadow-2xs">
+                  <span>{dictationSummaryPill}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDictationSummaryPill(null)}
+                    className="text-emerald-600 hover:text-emerald-800 p-0.5"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+
             <form onSubmit={handleCreateEncounter} className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
@@ -2426,6 +2856,163 @@ export default function Home() {
               >
                 Sign & Save Encounter
               </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ── Emergency Break-Glass Modal ── */}
+      {showBreakGlassModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="medical-card w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl border-rose-300 dark:border-rose-900 ring-2 ring-rose-500/20">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between border-b border-rose-100 dark:border-rose-950/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-rose-600 text-white shadow-md shadow-rose-600/20">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-rose-900 dark:text-rose-200 flex items-center gap-2">
+                    Emergency "Break-Glass" Consent Protocol
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300">
+                      ABDM SEC 38
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Statutory Emergency EHR Override for Unconscious / Critical Patients
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowBreakGlassModal(false);
+                  setBreakGlassError("");
+                  setBreakGlassSuccessNotice(null);
+                }}
+                className="p-1 rounded text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Warning Banner */}
+            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/60 text-xs text-rose-800 dark:text-rose-300 space-y-1">
+              <div className="font-semibold flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                Statutory Regulatory Safeguard
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                Emergency override bypasses patient consent OTP for life-threatening clinical presentations. Full record access is granted for exactly <strong>4 hours</strong>. An immutable audit record and high-priority statutory SMS notification are immediately delivered to the patient.
+              </p>
+            </div>
+
+            {breakGlassError && (
+              <div className="p-2.5 rounded-lg bg-rose-100 dark:bg-rose-950/80 border border-rose-300 text-rose-900 dark:text-rose-200 text-xs font-semibold">
+                {breakGlassError}
+              </div>
+            )}
+
+            {breakGlassSuccessNotice && (
+              <div className="p-3.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-800 dark:text-emerald-300 space-y-1">
+                <div className="font-bold flex items-center gap-1.5 text-emerald-700 dark:text-emerald-200">
+                  <CheckCircle2 className="w-4 h-4" />
+                  Emergency Override Authorized
+                </div>
+                <p className="text-[11px]">
+                  Consent Reference: <code className="font-mono">{breakGlassSuccessNotice.consent_id}</code>
+                </p>
+                <p className="text-[11px]">
+                  Authorized Until: <strong>{new Date(breakGlassSuccessNotice.valid_to || breakGlassSuccessNotice.expires_at).toLocaleTimeString()}</strong> (4 Hours)
+                </p>
+                <p className="text-[10px] text-emerald-600 dark:text-emerald-400 italic">
+                  Patient record unlocked in Doctor Workstation. Switching view...
+                </p>
+              </div>
+            )}
+
+            <form onSubmit={handleBreakGlassSubmit} className="space-y-3 pt-1">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select Patient from Hospital Master Directory
+                </label>
+                <select
+                  value={breakGlassPatientId}
+                  onChange={e => setBreakGlassPatientId(e.target.value)}
+                  className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900 font-medium"
+                >
+                  {allDirectoryPatients.map(p => (
+                    <option key={p.patient_id} value={p.patient_id}>
+                      {p.full_name} ({p.gender}, {p.age}y) • ABHA: {p.abha_number}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Emergency Clinical Indication
+                </label>
+                <select
+                  value={breakGlassType}
+                  onChange={e => setBreakGlassType(e.target.value)}
+                  className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
+                >
+                  <option value="ACCIDENT_TRAUMA">🚨 Severe Polytrauma / Major Road Accident</option>
+                  <option value="CARDIAC_ARREST_MI">❤️ Acute Coronary Syndrome / Massive MI</option>
+                  <option value="ACUTE_RESPIRATORY_FAILURE">🫁 Acute Respiratory Failure / Hypoxia</option>
+                  <option value="ANAPHYLAXIS_POISONING">⚠️ Anaphylaxis Shock / Suspected Poisoning</option>
+                  <option value="UNCONSCIOUS_UNIDENTIFIED">🧠 Unconscious Patient / Neurological Collapse</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Mandatory Clinical Justification (ABDM Audit Trail)
+                </label>
+                <textarea
+                  rows={3}
+                  value={breakGlassJustification}
+                  onChange={e => setBreakGlassJustification(e.target.value)}
+                  placeholder="e.g. Patient brought in comatose following polytrauma with hypotension. Immediate access to allergies and surgical history required for emergent resuscitation."
+                  className="w-full p-2.5 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
+                  required
+                />
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Minimum 10 characters. This reason is permanently recorded in the National Health Authority audit log.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBreakGlassModal(false);
+                    setBreakGlassError("");
+                    setBreakGlassSuccessNotice(null);
+                  }}
+                  className="px-3 py-2 rounded text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingBreakGlass}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 active:scale-98 text-white text-xs font-bold shadow-md shadow-rose-600/20 transition-all disabled:opacity-50"
+                >
+                  {loadingBreakGlass ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      <span>Authorizing Override...</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-3.5 h-3.5" />
+                      <span>Execute Emergency "Break-Glass" Access</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>

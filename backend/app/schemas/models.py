@@ -170,6 +170,57 @@ class NotificationResponse(BaseModel):
     created_at: datetime
 
 
+# --- Break-Glass Emergency Consent Schemas ---
+class BreakGlassRequest(BaseModel):
+    patient_id: str
+    justification: str = Field(..., min_length=10, description="Mandatory clinical rationale for emergency break-glass access")
+    emergency_type: str = Field(default="ACUTE_EMERGENCY", description="TRAUMA, CARDIAC_ARREST, UNRESPONSIVE_TRIAGE, SEVERE_SEPSIS, STROKE")
+
+class BreakGlassResponse(BaseModel):
+    consent_id: str
+    patient_id: str
+    patient_name: str
+    doctor_name: str
+    status: str
+    valid_from: datetime
+    valid_to: datetime
+    justification: str
+    emergency_type: str
+    message: str
+
+
+# --- Dictation & Voice-to-SNOMED Schemas ---
+class DictationParseRequest(BaseModel):
+    transcript: str = Field(..., min_length=3, description="Raw dictated clinical speech transcript")
+
+class ParsedCondition(BaseModel):
+    snomed_code: str
+    display_name: str
+    clinical_status: str = "ACTIVE"
+    severity: str = "MODERATE"
+    notes: Optional[str] = None
+
+class ParsedPrescription(BaseModel):
+    medication_name: str
+    dosage: str
+    frequency: str
+    duration: str
+    instructions: Optional[str] = None
+
+class ParsedLabOrder(BaseModel):
+    test_name: str
+    test_code: Optional[str] = None
+    priority: str = "ROUTINE"
+
+class DictationParseResponse(BaseModel):
+    reason: str
+    clinical_notes: str
+    conditions: List[ParsedCondition]
+    prescriptions: List[ParsedPrescription]
+    lab_orders: List[ParsedLabOrder]
+    raw_transcript: str
+
+
 # --- Audit Schemas ---
 class AuditLogResponse(BaseModel):
     id: str

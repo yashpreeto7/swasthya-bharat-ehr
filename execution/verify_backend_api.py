@@ -136,8 +136,77 @@ async def run_verification():
         assert res.status_code == 401, f"Expected 401 Unauthorized, got {res.status_code}"
         print("[PASS] 14. Security Barrier (Rejected unauthorized request) -> 401 Unauthorized")
 
+        # 15. Emergency "Break-Glass" Consent Protocol (ABDM Sec 38 Emergency EHR Unlock & Audit)
+        # Register a fresh unconsented trauma emergency patient to ensure isolated testing
+        import time
+        unique_email = f"trauma.emergency.{int(time.time())}@aiims.gov.in"
+        res = await client.post("/api/v1/auth/register", json={
+            "email": unique_email,
+            "password": "EmergencyPassword123!",
+            "full_name": "Vikramaditya Rao (Unconscious Trauma)",
+            "role": "PATIENT",
+            "gender": "Male",
+            "blood_group": "O+"
+        })
+        assert res.status_code == 200, f"Registration of emergency patient failed: {res.text}"
+        unauth_pid = res.json()["user"]["patient_id"]
+
+        # Confirm that access without consent is denied (403 Forbidden)
+        res = await client.get(f"/api/v1/doctors/patients/{unauth_pid}/timeline", headers=doc_headers)
+        assert res.status_code == 403, f"Expected 403 Forbidden before break-glass, got {res.status_code}"
+
+        # Execute Emergency Break-Glass Override
+        res = await client.post("/api/v1/consent/break-glass", headers=doc_headers, json={
+            "patient_id": unauth_pid,
+            "justification": "Patient comatose after severe vehicular collision with hypotension. Urgent allergy and prior medication review required for resuscitation.",
+            "emergency_type": "ACCIDENT_TRAUMA"
+        })
+        assert res.status_code == 200, f"Emergency break-glass failed: {res.text}"
+        bg_data = res.json()
+        assert bg_data["status"] == "EMERGENCY_OVERRIDE"
+        assert bg_data["patient_id"] == unauth_pid
+        assert "consent_id" in bg_data
+        assert "valid_to" in bg_data
+
+        # Verify patient's timeline is now accessible
+        res = await client.get(f"/api/v1/doctors/patients/{unauth_pid}/timeline", headers=doc_headers)
+        assert res.status_code == 200, f"Timeline access after emergency override failed: {res.text}"
+        unlocked_timeline = res.json()
+        assert unlocked_timeline["patient_id"] == unauth_pid
+
+        # Verify patient is marked as emergency override in authorized roster
+        res = await client.get("/api/v1/doctors/authorized-patients", headers=doc_headers)
+        assert res.status_code == 200
+        updated_roster = res.json()
+        unlocked_roster_entry = next((p for p in updated_roster if p["patient_id"] == unauth_pid), None)
+        assert unlocked_roster_entry is not None
+        assert unlocked_roster_entry.get("is_emergency_override") is True
+        print(f"[PASS] 15. Emergency Break-Glass Protocol (ABDM Sec 38 Emergency EHR Unlock for {bg_data['patient_name']}) -> 200 OK")
+
+        # 16. Voice-to-SNOMED Clinical Dictation AI (NLP extraction & SNOMED CT concept resolution)
+        # Test 16A: Bronchitis dictation
+        res = await client.post("/api/v1/ai/parse-dictation", headers=doc_headers, json={
+            "transcript": "Patient presents with acute bronchitis with severe productive cough. Prescribing Amoxicillin 500 mg thrice daily for 7 days."
+        })
+        assert res.status_code == 200, f"Dictation parse failed: {res.text}"
+        parsed_bronchitis = res.json()
+        assert any(c["snomed_code"] == "10509002" for c in parsed_bronchitis["conditions"]), "Expected Acute bronchitis SNOMED 10509002"
+        assert any("Amoxicillin" in rx["medication_name"] for rx in parsed_bronchitis["prescriptions"]), "Expected Amoxicillin prescription"
+
+        # Test 16B: Dengue with thrombocytopenia dictation
+        res = await client.post("/api/v1/ai/parse-dictation", headers=doc_headers, json={
+            "transcript": "Suspected acute dengue fever with severe thrombocytopenia. Prescribing Paracetamol 650 mg SOS and ordering CBC complete blood count."
+        })
+        assert res.status_code == 200, f"Dictation parse failed: {res.text}"
+        parsed_dengue = res.json()
+        dengue_snomed_codes = {c["snomed_code"] for c in parsed_dengue["conditions"]}
+        assert "38362002" in dengue_snomed_codes, "Expected Dengue fever SNOMED 38362002"
+        assert "302215000" in dengue_snomed_codes, "Expected Thrombocytopenia SNOMED 302215000"
+        assert len(parsed_dengue["lab_orders"]) >= 1, "Expected parsed lab order for CBC"
+        print("[PASS] 16. Voice-to-SNOMED Dictation AI (NLP extraction & SNOMED CT concept resolution) -> 200 OK")
+
     print("=" * 60)
-    print("ALL 12 BACKEND INTEGRATION & SECURITY TESTS PASSED!")
+    print("ALL 16 BACKEND INTEGRATION, SECURITY & AI TESTS PASSED!")
     print("=" * 60)
 
 if __name__ == "__main__":

@@ -6,12 +6,116 @@ from sqlalchemy import select, and_
 from sqlalchemy.orm import selectinload
 
 from backend.app.core.database import get_db
-from backend.app.models.entities import User, Patient, Practitioner, Consent, utc_now
-from backend.app.schemas.models import ConsentGrantRequest, ConsentResponse
+from backend.app.models.entities import User, Patient, Practitioner, Consent, Notification, utc_now
+from backend.app.schemas.models import ConsentGrantRequest, ConsentResponse, BreakGlassRequest, BreakGlassResponse
 from backend.app.api.deps import get_current_user, require_roles
 from backend.app.core.audit_logger import log_audit_event
 
 router = APIRouter(prefix="/consent", tags=["Consent Management"])
+
+@router.post("/break-glass", response_model=BreakGlassResponse)
+async def break_glass_emergency_access(
+    req: BreakGlassRequest,
+    current_user: User = Depends(require_roles("DOCTOR")),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    ABDM Break-Glass Protocol:
+    Allows an authorized emergency physician to bypass standard patient consent
+    under life-threatening acute trauma or emergency conditions.
+    Enforces mandatory clinical justification, 4-hour validity window,
+    immediate high-priority patient notification, and immutable audit logging.
+    """
+    stmt_d = select(Practitioner).where(Practitioner.user_id == current_user.id).options(selectinload(Practitioner.user))
+    doc = (await db.execute(stmt_d)).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Practitioner record not found")
+
+    stmt_p = select(Patient).where(Patient.id == req.patient_id).options(selectinload(Patient.user))
+    patient = (await db.execute(stmt_p)).scalar_one_or_none()
+    if not patient:
+        raise HTTPException(status_code=404, detail="Patient record not found")
+
+    now = utc_now()
+    valid_to = now + timedelta(hours=4)
+
+    # Check if active emergency override already exists
+    stmt_existing = select(Consent).where(
+        and_(
+            Consent.patient_id == patient.id,
+            Consent.doctor_id == doc.id,
+            Consent.status == "EMERGENCY_OVERRIDE",
+            Consent.valid_to >= now
+        )
+    )
+    existing_consent = (await db.execute(stmt_existing)).scalar_one_or_none()
+    if existing_consent:
+        consent = existing_consent
+        consent.valid_to = valid_to  # extend window
+    else:
+        consent = Consent(
+            patient_id=patient.id,
+            doctor_id=doc.id,
+            purpose=f"EMERGENCY_CARE: {req.emergency_type}",
+            categories=["ALL_RECORDS"],
+            status="EMERGENCY_OVERRIDE",
+            valid_from=now,
+            valid_to=valid_to
+        )
+        db.add(consent)
+
+    # Dispatch High-Priority Emergency Notification to Patient
+    doc_display = doc.user.full_name if doc.user else "Practitioner"
+    notif = Notification(
+        user_id=patient.user_id,
+        patient_id=patient.id,
+        type="EMERGENCY_ACCESS",
+        title="CRITICAL: Emergency Break-Glass Record Access Invoked",
+        message=(
+            f"Emergency clinical override was invoked for your EHR by Dr. {doc_display} "
+            f"({doc.hospital_name or 'Emergency Department'}). Reason: {req.justification}. "
+            f"Access window is time-limited to 4 hours and tracked in the immutable audit log."
+        ),
+        status="SENT",
+        channel="IN_APP",
+        scheduled_time=now
+    )
+    db.add(notif)
+    await db.commit()
+    await db.refresh(consent)
+
+    # Log Immutable Audit Trail
+    await log_audit_event(
+        db=db,
+        actor_id=current_user.id,
+        actor_role="DOCTOR",
+        action="BREAK_GLASS_ACCESS",
+        patient_id=patient.id,
+        consent_id=consent.id,
+        purpose=f"EMERGENCY_CARE: {req.emergency_type}",
+        status="OVERRIDE_GRANTED",
+        details={
+            "justification": req.justification,
+            "emergency_type": req.emergency_type,
+            "doctor_registration": doc.registration_number,
+            "hospital": doc.hospital_name,
+            "valid_until": valid_to.isoformat()
+        }
+    )
+
+    return BreakGlassResponse(
+        consent_id=consent.id,
+        patient_id=patient.id,
+        patient_name=patient.user.full_name if patient.user else "Patient",
+        doctor_name=doc_display,
+        status=consent.status,
+        valid_from=consent.valid_from,
+        valid_to=consent.valid_to,
+        justification=req.justification,
+        emergency_type=req.emergency_type,
+        message="Emergency Break-Glass access authorized under ABDM Emergency Protocol. Valid for 4 hours."
+    )
+
 
 @router.post("/grant", response_model=ConsentResponse)
 async def grant_consent(

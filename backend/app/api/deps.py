@@ -77,12 +77,12 @@ async def verify_consent_access(
         )
 
     now = utc_now()
-    # 2. Query active consents
+    # 2. Query active consents (including EMERGENCY_OVERRIDE from Break-Glass protocol)
     stmt_consent = select(Consent).where(
         and_(
             Consent.patient_id == patient_id,
             Consent.doctor_id == practitioner.id,
-            Consent.status == "GRANTED",
+            Consent.status.in_(["GRANTED", "EMERGENCY_OVERRIDE"]),
             Consent.valid_from <= now,
             Consent.valid_to >= now,
             Consent.revoked_at.is_(None)
