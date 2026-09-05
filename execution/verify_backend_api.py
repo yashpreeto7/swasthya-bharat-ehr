@@ -112,11 +112,29 @@ async def run_verification():
         assert len(audit_logs) >= 2, "Expected audit trail entries"
         print(f"[PASS] 11. Patient Transparency Audit Trail ({len(audit_logs)} access events logged) -> 200 OK")
 
-        # 12. Unauthorized Access Block (Security verification)
+        # 12. ABDM HIP Patient Discovery (M2 Care Context Discovery)
+        res = await client.post("/api/v1/abdm/hip/discover", json={
+            "abha_id": "91-4405-2026-0001",
+            "hip_id": "HIP-APOLLO-DELHI"
+        })
+        assert res.status_code == 200, f"ABDM HIP Discovery failed: {res.text}"
+        disc_data = res.json()
+        assert len(disc_data["care_contexts"]) >= 1, "Expected discovered care contexts"
+        print(f"[PASS] 12. ABDM HIP Discovery (Found {len(disc_data['care_contexts'])} linked Care Contexts) -> 200 OK")
+
+        # 13. ABDM HIU Encrypted Health Data Flow (M3 Transfer under Consent)
+        consent_id = authorized_patients[0]["consent_id"]
+        res = await client.get(f"/api/v1/abdm/hiu/health-information/fetch/{consent_id}")
+        assert res.status_code == 200, f"ABDM HIU Fetch failed: {res.text}"
+        hiu_bundle = res.json()
+        assert hiu_bundle["fhir_bundle"]["resourceType"] == "Bundle"
+        print(f"[PASS] 13. ABDM HIU Data Flow (Extracted {len(hiu_bundle['fhir_bundle']['entry'])} resources in Document Bundle) -> 200 OK")
+
+        # 14. Security Barrier (Rejected unauthorized request)
         unauth_headers = {"Authorization": "Bearer invalid_token_xyz"}
         res = await client.get(f"/api/v1/doctors/patients/{p1_id}/timeline", headers=unauth_headers)
         assert res.status_code == 401, f"Expected 401 Unauthorized, got {res.status_code}"
-        print("[PASS] 12. Security Barrier (Rejected unauthorized request) -> 401 Unauthorized")
+        print("[PASS] 14. Security Barrier (Rejected unauthorized request) -> 401 Unauthorized")
 
     print("=" * 60)
     print("ALL 12 BACKEND INTEGRATION & SECURITY TESTS PASSED!")

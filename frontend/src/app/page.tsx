@@ -4,19 +4,42 @@ import React, { useState, useEffect } from "react";
 import {
   Activity, ShieldCheck, Stethoscope, User, FlaskConical, Bell,
   FileText, CheckCircle2, AlertTriangle, Clock, Calendar, Lock,
-  Search, Plus, Sparkles, Send, RefreshCw, ChevronRight, X, Eye, FileCode2
+  Search, Plus, Sparkles, Send, RefreshCw, ChevronRight, X, Eye, FileCode2,
+  Network, ArrowRight, KeyRound, LogIn, LogOut, Check
 } from "lucide-react";
 
 export default function Home() {
-  const [activePortal, setActivePortal] = useState<"doctor" | "patient" | "lab" | "consent" | "fhir" | "audit">("doctor");
+  const [activePortal, setActivePortal] = useState<"doctor" | "patient" | "lab" | "consent" | "abdm" | "fhir" | "audit">("doctor");
+  const [currentRole, setCurrentRole] = useState<"DOCTOR" | "PATIENT" | "LAB">("DOCTOR");
+  const [currentUserName, setCurrentUserName] = useState("Dr. Arvind Swaminathan, MD");
+  const [showPersonaModal, setShowPersonaModal] = useState(false);
+
+  // Auth tokens
+  const [tokens, setTokens] = useState<Record<string, string>>({});
+  const [activeToken, setActiveToken] = useState<string>("");
+
+  // Custom Login Form State
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authRole, setAuthRole] = useState("PATIENT");
+  const [authFullName, setAuthFullName] = useState("");
+  const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [authError, setAuthError] = useState("");
+
+  // Doctor portal state
   const [patients, setPatients] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [timeline, setTimeline] = useState<any>(null);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
+
+  // Lab portal state
   const [labOrders, setLabOrders] = useState<any[]>([]);
+
+  // Consent & Audit state
   const [consents, setConsents] = useState<any[]>([]);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
+  const [doctorsList, setDoctorsList] = useState<any[]>([]);
 
   // AI state
   const [aiSummary, setAiSummary] = useState<any>(null);
@@ -27,7 +50,7 @@ export default function Home() {
   const [explainingReport, setExplainingReport] = useState<any>(null);
   const [loadingLabExplainer, setLoadingLabExplainer] = useState(false);
 
-  // Encounter & Lab form state
+  // Encounter modal
   const [showEncounterModal, setShowEncounterModal] = useState(false);
   const [encounterReason, setEncounterReason] = useState("");
   const [encounterNotes, setEncounterNotes] = useState("");
@@ -50,14 +73,19 @@ export default function Home() {
   const [grantDoctorId, setGrantDoctorId] = useState("");
   const [grantPurpose, setGrantPurpose] = useState("CONSULTATION");
   const [grantCategory, setGrantCategory] = useState("ALL_RECORDS");
-  const [doctorsList, setDoctorsList] = useState<any[]>([]);
 
   // FHIR viewer
   const [fhirResource, setFhirResource] = useState<any>(null);
   const [selectedFhirType, setSelectedFhirType] = useState("Patient");
 
-  // Auth tokens (demo profiles)
-  const [tokens, setTokens] = useState<Record<string, string>>({});
+  // ABDM Gateway Simulator State (HIP & HIU)
+  const [abdmAbhaInput, setAbdmAbhaInput] = useState("91-4405-2026-0001");
+  const [abdmDiscovered, setAbdmDiscovered] = useState<any>(null);
+  const [abdmOtpInput, setAbdmOtpInput] = useState("123456");
+  const [abdmLinkStatus, setAbdmLinkStatus] = useState<string>("");
+  const [abdmHiuConsentId, setAbdmHiuConsentId] = useState<string>("");
+  const [abdmHiuTransferResult, setAbdmHiuTransferResult] = useState<any>(null);
+  const [loadingAbdm, setLoadingAbdm] = useState(false);
 
   useEffect(() => {
     initAuthAndData();
@@ -65,7 +93,6 @@ export default function Home() {
 
   const initAuthAndData = async () => {
     try {
-      // 1. Login doctor
       const docRes = await fetch("http://localhost:8000/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -73,7 +100,6 @@ export default function Home() {
       });
       const docData = await docRes.json();
 
-      // 2. Login patient
       const patRes = await fetch("http://localhost:8000/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,7 +107,6 @@ export default function Home() {
       });
       const patData = await patRes.json();
 
-      // 3. Login lab
       const labRes = await fetch("http://localhost:8000/api/v1/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -89,43 +114,96 @@ export default function Home() {
       });
       const labData = await labRes.json();
 
-      const newTokens = {
+      const loadedTokens = {
         doctor: docData.access_token,
         patient: patData.access_token,
         lab: labData.access_token
       };
-      setTokens(newTokens);
+      setTokens(loadedTokens);
+      setActiveToken(loadedTokens.doctor);
 
-      // Load authorized patients for doctor
+      // Load doctor patient list
       const pRes = await fetch("http://localhost:8000/api/v1/doctors/authorized-patients", {
-        headers: { Authorization: `Bearer ${newTokens.doctor}` }
+        headers: { Authorization: `Bearer ${loadedTokens.doctor}` }
       });
       const pList = await pRes.json();
       if (Array.isArray(pList) && pList.length > 0) {
         setPatients(pList);
         setSelectedPatientId(pList[0].patient_id);
-        fetchTimeline(pList[0].patient_id, newTokens.doctor);
+        setAbdmHiuConsentId(pList[0].consent_id);
+        fetchTimeline(pList[0].patient_id, loadedTokens.doctor);
       }
 
-      // Load lab orders
-      fetchLabOrders(newTokens.lab);
-
-      // Load notifications
-      fetchNotifications(newTokens.patient);
-
-      // Load consents & doctors
-      fetchConsents(newTokens.patient);
-      fetchDoctorsList(newTokens.patient);
-
-      // Load audit logs
-      fetchAuditLogs(newTokens.patient);
+      fetchLabOrders(loadedTokens.lab);
+      fetchNotifications(loadedTokens.patient);
+      fetchConsents(loadedTokens.patient);
+      fetchDoctorsList(loadedTokens.patient);
+      fetchAuditLogs(loadedTokens.patient);
 
     } catch (err) {
       console.error("Initialization error:", err);
     }
   };
 
-  const fetchTimeline = async (patientId: string, token = tokens.doctor) => {
+  const switchPersona = (role: "DOCTOR" | "PATIENT" | "LAB") => {
+    setCurrentRole(role);
+    if (role === "DOCTOR") {
+      setCurrentUserName("Dr. Arvind Swaminathan, MD");
+      setActiveToken(tokens.doctor);
+      setActivePortal("doctor");
+    } else if (role === "PATIENT") {
+      setCurrentUserName("Rajesh Sharma (ABHA Owner)");
+      setActiveToken(tokens.patient);
+      setActivePortal("patient");
+    } else {
+      setCurrentUserName("Dr. Lal PathLabs Specialist");
+      setActiveToken(tokens.lab);
+      setActivePortal("lab");
+    }
+    setShowPersonaModal(false);
+  };
+
+  const handleCustomAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAuthError("");
+    try {
+      if (isRegisterMode) {
+        const res = await fetch("http://localhost:8000/api/v1/auth/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: authEmail,
+            password: authPassword,
+            full_name: authFullName,
+            role: authRole
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Registration failed");
+        setCurrentUserName(data.user.full_name);
+        setCurrentRole(data.user.role as any);
+        setActiveToken(data.access_token);
+      } else {
+        const res = await fetch("http://localhost:8000/api/v1/auth/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email: authEmail, password: authPassword })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.detail || "Login failed");
+        setCurrentUserName(data.user.full_name);
+        setCurrentRole(data.user.role as any);
+        setActiveToken(data.access_token);
+      }
+      setShowPersonaModal(false);
+      setAuthEmail("");
+      setAuthPassword("");
+    } catch (err: any) {
+      setAuthError(err.message);
+    }
+  };
+
+  const fetchTimeline = async (patientId: string, token = activeToken || tokens.doctor) => {
     setLoadingTimeline(true);
     try {
       const res = await fetch(`http://localhost:8000/api/v1/doctors/patients/${patientId}/timeline`, {
@@ -136,7 +214,7 @@ export default function Home() {
       setAiSummary(null);
       setAiAnswer(null);
     } catch (err) {
-      console.error("Error fetching timeline:", err);
+      console.error(err);
     } finally {
       setLoadingTimeline(false);
     }
@@ -221,7 +299,56 @@ export default function Home() {
     }
   };
 
-  // Generate Grounded AI Summary
+  // --- ABDM Gateway Simulator Handlers ---
+  const handleHipDiscover = async () => {
+    setLoadingAbdm(true);
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/abdm/hip/discover", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ abha_id: abdmAbhaInput, hip_id: "HIP-APOLLO-DELHI" })
+      });
+      const data = await res.json();
+      setAbdmDiscovered(data);
+      setAbdmLinkStatus("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingAbdm(false);
+    }
+  };
+
+  const handleHipLinkConfirm = async () => {
+    if (!abdmDiscovered) return;
+    try {
+      const res = await fetch("http://localhost:8000/api/v1/abdm/hip/link/confirm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ patient_id: abdmDiscovered.patient_id, otp: abdmOtpInput })
+      });
+      const data = await res.json();
+      setAbdmLinkStatus(data.message);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleHiuFetchData = async () => {
+    if (!abdmHiuConsentId) return;
+    setLoadingAbdm(true);
+    try {
+      const res = await fetch(`http://localhost:8000/api/v1/abdm/hiu/health-information/fetch/${abdmHiuConsentId}`);
+      const data = await res.json();
+      setAbdmHiuTransferResult(data);
+      fetchAuditLogs(tokens.patient);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingAbdm(false);
+    }
+  };
+
+  // --- AI Clinical Copilot Handlers ---
   const handleGenerateSummary = async () => {
     if (!selectedPatientId) return;
     setLoadingAiSummary(true);
@@ -239,7 +366,6 @@ export default function Home() {
     }
   };
 
-  // AI Grounded Query
   const handleAskQuery = async (queryText?: string) => {
     const q = queryText || aiQuery;
     if (!q || !selectedPatientId) return;
@@ -263,7 +389,6 @@ export default function Home() {
     }
   };
 
-  // Lab report explanation
   const handleExplainLab = async (reportId: string) => {
     setLoadingLabExplainer(true);
     try {
@@ -279,7 +404,6 @@ export default function Home() {
     }
   };
 
-  // SNOMED CT Search
   const searchSnomed = async (q: string) => {
     setSnomedSearchQuery(q);
     if (!q || q.length < 2) {
@@ -295,7 +419,6 @@ export default function Home() {
     }
   };
 
-  // Submit Encounter
   const handleCreateEncounter = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPatientId || !selectedSnomed) return;
@@ -345,7 +468,6 @@ export default function Home() {
     }
   };
 
-  // Submit Lab Results
   const handleSubmitLabResults = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLabOrder) return;
@@ -358,7 +480,7 @@ export default function Home() {
           Authorization: `Bearer ${tokens.lab}`
         },
         body: JSON.stringify({
-          conclusion: labConclusion || "Diagnostic investigation completed. Report verified by Laboratory Specialist.",
+          conclusion: labConclusion || "Diagnostic investigation completed. Verified by Lab Specialist.",
           observations: [
             {
               test_code: selectedLabOrder.test_code || "58800005",
@@ -385,7 +507,6 @@ export default function Home() {
     }
   };
 
-  // Grant Consent
   const handleGrantConsent = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -411,7 +532,6 @@ export default function Home() {
     }
   };
 
-  // Revoke Consent
   const handleRevokeConsent = async (consentId: string) => {
     try {
       const res = await fetch(`http://localhost:8000/api/v1/consent/${consentId}/revoke`, {
@@ -475,7 +595,7 @@ export default function Home() {
               }`}
             >
               <User className="w-3.5 h-3.5" />
-              Patient Health Portal
+              Patient Portal
             </button>
 
             <button
@@ -500,6 +620,18 @@ export default function Home() {
             >
               <ShieldCheck className="w-3.5 h-3.5" />
               Consent Hub
+            </button>
+
+            <button
+              onClick={() => setActivePortal("abdm")}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activePortal === "abdm"
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "text-slate-300 hover:text-white hover:bg-slate-700/50"
+              }`}
+            >
+              <Network className="w-3.5 h-3.5" />
+              ABDM (HIP & HIU)
             </button>
 
             <button
@@ -530,8 +662,19 @@ export default function Home() {
             </button>
           </nav>
 
-          {/* Quick Stats / Active User */}
+          {/* Persona Switcher & Auth Trigger */}
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowPersonaModal(true)}
+              className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1.5 rounded-xl border border-slate-700 text-xs font-medium transition shadow-sm"
+            >
+              <KeyRound className="w-3.5 h-3.5 text-teal-400" />
+              <span>Switch User</span>
+              <span className="text-[10px] bg-teal-500/20 text-teal-300 px-1.5 py-0.5 rounded font-mono">
+                {currentRole}
+              </span>
+            </button>
+
             <div className="relative cursor-pointer" title="Reminders & Notifications">
               <div className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition">
                 <Bell className="w-4 h-4" />
@@ -544,17 +687,11 @@ export default function Home() {
             </div>
 
             <div className="text-right">
-              <div className="text-xs font-semibold text-white">
-                {activePortal === "doctor" && "Dr. Arvind Swaminathan, MD"}
-                {activePortal === "patient" && "Rajesh Sharma (Patient)"}
-                {activePortal === "lab" && "Dr. Lal PathLabs Tech"}
-                {["consent", "fhir", "audit"].includes(activePortal) && "Rajesh Sharma (ABHA Owner)"}
-              </div>
+              <div className="text-xs font-semibold text-white">{currentUserName}</div>
               <div className="text-[11px] text-teal-400 font-mono">
-                {activePortal === "doctor" && "MCI-74892 &bull; Apollo Hospitals"}
-                {activePortal === "patient" && "ABHA: 91-4405-2026-0001"}
-                {activePortal === "lab" && "NABL-DL-2026-891"}
-                {["consent", "fhir", "audit"].includes(activePortal) && "ABHA Connected"}
+                {currentRole === "DOCTOR" && "MCI-74892 &bull; Apollo Hospitals"}
+                {currentRole === "PATIENT" && "ABHA: 91-4405-2026-0001"}
+                {currentRole === "LAB" && "NABL-DL-2026-891"}
               </div>
             </div>
           </div>
@@ -564,12 +701,178 @@ export default function Home() {
       {/* Main Content Workspace */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-6">
         {/* ========================================================================= */}
-        {/* PORTAL 1: DOCTOR WORKSPACE                                                */}
+        {/* PORTAL: ABDM GATEWAY SIMULATOR (HIP & HIU)                                */}
+        {/* ========================================================================= */}
+        {activePortal === "abdm" && (
+          <div className="space-y-6">
+            <div className="bg-gradient-to-r from-slate-900 via-emerald-950 to-slate-900 text-white p-6 rounded-3xl border border-emerald-500/30 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-emerald-300">
+                  <Network className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold">ABDM Health Information Exchange Gateway</h2>
+                  <p className="text-xs text-slate-300">
+                    Demonstrating National Health Authority (NHA) ABDM Standards: Health Information Provider (HIP) Discovery &amp; Care Context Linking (M2), plus Health Information User (HIU) Consent-Driven Data Transfer (M3).
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Box 1: HIP - Care Context Discovery & Linking */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">
+                      ABDM Milestone 2 (HIP)
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900 mt-1">
+                      Health Information Provider: Discovery &amp; Linking
+                    </h3>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400">HIP: Apollo Hospitals</span>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Enter Patient ABHA ID</label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={abdmAbhaInput}
+                        onChange={(e) => setAbdmAbhaInput(e.target.value)}
+                        className="flex-1 bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2 font-mono"
+                      />
+                      <button
+                        onClick={handleHipDiscover}
+                        disabled={loadingAbdm}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition disabled:opacity-50"
+                      >
+                        Discover Contexts
+                      </button>
+                    </div>
+                  </div>
+
+                  {abdmDiscovered && (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-emerald-200 text-xs space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-800">{abdmDiscovered.patient_name}</span>
+                        <span className="text-[11px] font-mono text-emerald-700">ABHA: {abdmDiscovered.abha_id}</span>
+                      </div>
+
+                      <div className="space-y-1">
+                        <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                          Discovered Care Contexts ({abdmDiscovered.care_contexts?.length}):
+                        </span>
+                        {abdmDiscovered.care_contexts?.map((cc: any, idx: number) => (
+                          <div key={idx} className="bg-white p-2 rounded border text-slate-700 flex items-center justify-between">
+                            <span>{cc.display}</span>
+                            <span className="font-mono text-[10px] bg-slate-100 text-slate-600 px-1 py-0.5 rounded">
+                              {cc.referenceNumber}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* OTP Linking */}
+                      <div className="pt-2 border-t space-y-2">
+                        <label className="text-[11px] font-semibold text-slate-700 block">
+                          Link Contexts to ABHA (Enter Authentication OTP)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={abdmOtpInput}
+                            onChange={(e) => setAbdmOtpInput(e.target.value)}
+                            placeholder="Demo OTP: 123456"
+                            className="w-32 bg-white border border-slate-300 text-xs rounded-lg px-2.5 py-1.5 font-mono"
+                          />
+                          <button
+                            onClick={handleHipLinkConfirm}
+                            className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-3 py-1.5 rounded-lg"
+                          >
+                            Verify &amp; Link
+                          </button>
+                        </div>
+                        {abdmLinkStatus && (
+                          <p className="text-xs text-emerald-700 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {abdmLinkStatus}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Box 2: HIU - Health Data Transfer under Consent */}
+              <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="flex items-center justify-between pb-3 border-b">
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-800 px-2 py-0.5 rounded">
+                      ABDM Milestone 3 (HIU)
+                    </span>
+                    <h3 className="text-sm font-bold text-slate-900 mt-1">
+                      Health Information User: Data Fetch &amp; FHIR Extraction
+                    </h3>
+                  </div>
+                  <span className="text-xs font-mono text-slate-400">HIU: Doctor Clinic</span>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">
+                      Active Verified ABDM Consent Artifact ID
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={abdmHiuConsentId}
+                        onChange={(e) => setAbdmHiuConsentId(e.target.value)}
+                        placeholder="e.g. Consent Artifact UUID"
+                        className="flex-1 bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2 font-mono"
+                      />
+                      <button
+                        onClick={handleHiuFetchData}
+                        disabled={loadingAbdm || !abdmHiuConsentId}
+                        className="bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition disabled:opacity-50"
+                      >
+                        Fetch FHIR Bundle
+                      </button>
+                    </div>
+                  </div>
+
+                  {abdmHiuTransferResult && (
+                    <div className="space-y-2">
+                      <div className="bg-slate-50 p-3 rounded-xl border border-sky-200 text-xs flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-slate-800">Transaction: {abdmHiuTransferResult.transaction_id}</span>
+                          <p className="text-[11px] text-slate-500">Status: {abdmHiuTransferResult.status} &bull; Transferred from {abdmHiuTransferResult.hip_id}</p>
+                        </div>
+                        <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
+                          {abdmHiuTransferResult.fhir_bundle?.entry?.length} Resources Transferred
+                        </span>
+                      </div>
+
+                      <div className="bg-slate-900 text-emerald-400 p-3 rounded-xl font-mono text-[11px] max-h-60 overflow-y-auto border border-slate-800">
+                        <pre>{JSON.stringify(abdmHiuTransferResult.fhir_bundle, null, 2)}</pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PORTAL: DOCTOR WORKSPACE                                                  */}
         {/* ========================================================================= */}
         {activePortal === "doctor" && (
           <div className="space-y-6">
-            {/* Patient Selector & Consent Gate Banner */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm flex flex-wrap items-center justify-between gap-4">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-4">
                 <div>
                   <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-1">
@@ -627,9 +930,8 @@ export default function Home() {
 
             {/* Main Grid: Clinical Timeline & AI Copilot */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Left 2 Cols: Clinical Timeline */}
               <div className="lg:col-span-2 space-y-4">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                   <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
                     <div>
                       <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -653,7 +955,6 @@ export default function Home() {
                     <div className="relative pl-6 space-y-6 before:content-[''] before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
                       {timeline.events.map((ev: any) => (
                         <div key={ev.id} className="relative group">
-                          {/* Dot Icon */}
                           <div className={`absolute -left-6 top-1 w-5 h-5 rounded-full border-2 border-white flex items-center justify-center text-white shadow ${
                             ev.type === "ENCOUNTER" ? "bg-teal-600" :
                             ev.type === "DIAGNOSIS" ? "bg-indigo-600" :
@@ -678,7 +979,6 @@ export default function Home() {
 
                             <h3 className="text-sm font-semibold text-slate-900">{ev.title}</h3>
 
-                            {/* Diagnosis Details */}
                             {ev.snomed_code && (
                               <div className="mt-2 flex items-center gap-2">
                                 <span className="text-[11px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
@@ -688,7 +988,6 @@ export default function Home() {
                               </div>
                             )}
 
-                            {/* Prescription Details */}
                             {ev.dosage && (
                               <div className="mt-2 text-xs text-slate-600 bg-amber-50/60 p-2 rounded-lg border border-amber-200/60">
                                 <p className="font-semibold text-amber-900">{ev.dosage} &bull; {ev.frequency} ({ev.duration})</p>
@@ -696,7 +995,6 @@ export default function Home() {
                               </div>
                             )}
 
-                            {/* Lab Observations */}
                             {ev.observations && ev.observations.length > 0 && (
                               <div className="mt-2.5 space-y-1.5">
                                 {ev.observations.map((obs: any, idx: number) => (
@@ -721,7 +1019,6 @@ export default function Home() {
                               </div>
                             )}
 
-                            {/* Notes */}
                             {ev.notes && (
                               <p className="mt-2 text-xs text-slate-600 bg-white p-2 rounded border border-slate-100">
                                 {ev.notes}
@@ -737,9 +1034,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Right Col: AI Clinical Copilot */}
+              {/* AI Clinical Copilot */}
               <div className="space-y-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-teal-600" />
@@ -766,42 +1063,37 @@ export default function Home() {
                     Generate Grounded Clinical Brief
                   </button>
 
-                  {/* AI Summary Output */}
                   {aiSummary && (
-                    <div className="bg-slate-50 p-3.5 rounded-xl border border-teal-200/80 text-xs space-y-2">
+                    <div className="bg-slate-50 p-3.5 rounded-xl border border-teal-200 text-xs space-y-2">
                       <div className="font-semibold text-slate-800">Synthesized Summary:</div>
                       <p className="text-slate-600 leading-relaxed">{aiSummary.summary}</p>
-
                       <div className="pt-2 border-t border-slate-200">
                         <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1">
-                          Grounded Citations ({aiSummary.grounded_record_ids?.length}):
+                          Citations ({aiSummary.grounded_record_ids?.length}):
                         </div>
                         <div className="flex flex-wrap gap-1">
                           {aiSummary.grounded_record_ids?.map((id: string, i: number) => (
-                            <span key={i} className="text-[10px] font-mono bg-white text-teal-800 px-1.5 py-0.5 rounded border border-slate-200">
+                            <span key={i} className="text-[10px] font-mono bg-white text-teal-800 px-1.5 py-0.5 rounded border">
                               {id}
                             </span>
                           ))}
                         </div>
                       </div>
-
                       <p className="text-[10px] text-slate-400 italic pt-1">{aiSummary.disclaimer}</p>
                     </div>
                   )}
 
-                  {/* Interactive EHR Chat */}
                   <div className="pt-2 border-t border-slate-100 space-y-2">
                     <label className="text-xs font-semibold text-slate-700 block">
                       Inquire Patient History (RAG Retrieval)
                     </label>
 
-                    {/* Pre-canned query chips */}
                     <div className="flex flex-wrap gap-1">
                       <button
                         onClick={() => handleAskQuery("What were the patient's recent blood sugar and HbA1c test results?")}
                         className="text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded transition text-left"
                       >
-                        Recent blood sugar & HbA1c?
+                        Recent blood sugar &amp; HbA1c?
                       </button>
                       <button
                         onClick={() => handleAskQuery("What active medications are prescribed?")}
@@ -849,11 +1141,10 @@ export default function Home() {
         )}
 
         {/* ========================================================================= */}
-        {/* PORTAL 2: PATIENT HEALTH PORTAL                                           */}
+        {/* PORTAL: PATIENT PORTAL                                                    */}
         {/* ========================================================================= */}
         {activePortal === "patient" && (
           <div className="space-y-6">
-            {/* Indian ABHA Digital Health Card */}
             <div className="bg-gradient-to-r from-slate-900 via-teal-950 to-slate-900 text-white p-6 rounded-3xl shadow-xl relative overflow-hidden border border-teal-500/30">
               <div className="absolute right-0 top-0 w-96 h-96 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
               <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
@@ -895,17 +1186,16 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Patient Records: Timeline, Labs, & AI Explainer */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2 space-y-4">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <FileText className="w-5 h-5 text-teal-600" />
-                    My Health Records & Timeline
+                    My Health Records &amp; Timeline
                   </h3>
 
                   {timeline?.events?.map((ev: any) => (
-                    <div key={ev.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-2">
+                    <div key={ev.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700">{ev.title}</span>
                         <span className="text-xs text-slate-400">
@@ -946,9 +1236,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Reminders & Notifications Inbox */}
+              {/* Reminders */}
               <div className="space-y-4">
-                <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+                <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Bell className="w-4 h-4 text-teal-600" />
                     Patient Reminder Center
@@ -978,11 +1268,11 @@ export default function Home() {
         )}
 
         {/* ========================================================================= */}
-        {/* PORTAL 3: LAB OPERATIONS WORKFLOW                                         */}
+        {/* PORTAL: LAB OPERATIONS                                                    */}
         {/* ========================================================================= */}
         {activePortal === "lab" && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-4">
                 <div>
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1062,16 +1352,16 @@ export default function Home() {
         )}
 
         {/* ========================================================================= */}
-        {/* PORTAL 4: CONSENT MANAGEMENT HUB                                          */}
+        {/* PORTAL: CONSENT MANAGEMENT HUB                                            */}
         {/* ========================================================================= */}
         {activePortal === "consent" && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-6">
               <div className="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-4">
                 <div>
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
                     <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                    Patient Consent & Record Sharing Controls
+                    Patient Consent &amp; Record Sharing Controls
                   </h2>
                   <p className="text-xs text-slate-500">
                     ABDM Consent Architecture: Control which doctors access your health records, specify purpose, duration, and revoke anytime.
@@ -1124,7 +1414,7 @@ export default function Home() {
                       className="w-full bg-white border border-slate-300 text-xs rounded-xl px-3 py-2"
                     >
                       <option value="ALL_RECORDS">All Medical Records (Complete Timeline)</option>
-                      <option value="DIAGNOSTIC_REPORT">Diagnostic & Lab Reports Only</option>
+                      <option value="DIAGNOSTIC_REPORT">Diagnostic &amp; Lab Reports Only</option>
                       <option value="PRESCRIPTION">Prescriptions Only</option>
                       <option value="CONDITION">Past Diagnoses Only</option>
                     </select>
@@ -1139,9 +1429,9 @@ export default function Home() {
                 </form>
               </div>
 
-              {/* Active & Historical Consents Table */}
+              {/* Consents Table */}
               <div className="space-y-3">
-                <h3 className="text-sm font-bold text-slate-800">Your Active & Historical Consents</h3>
+                <h3 className="text-sm font-bold text-slate-800">Your Active &amp; Historical Consents</h3>
                 <div className="overflow-x-auto">
                   <table className="w-full text-left text-xs">
                     <thead>
@@ -1149,7 +1439,7 @@ export default function Home() {
                         <th className="py-2.5 px-3">Consent ID</th>
                         <th className="py-2.5 px-3">Authorized Doctor</th>
                         <th className="py-2.5 px-3">Purpose</th>
-                        <th className="py-2.5 px-3">Authorized Categories</th>
+                        <th className="py-2.5 px-3">Categories</th>
                         <th className="py-2.5 px-3">Validity Window</th>
                         <th className="py-2.5 px-3">Status</th>
                         <th className="py-2.5 px-3 text-right">Action</th>
@@ -1203,11 +1493,11 @@ export default function Home() {
         )}
 
         {/* ========================================================================= */}
-        {/* PORTAL 5: ABDM FHIR R4 INSPECTOR                                          */}
+        {/* PORTAL: FHIR R4 INSPECTOR                                                 */}
         {/* ========================================================================= */}
         {activePortal === "fhir" && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex flex-wrap items-center justify-between pb-4 border-b border-slate-100 gap-4">
                 <div>
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1242,11 +1532,11 @@ export default function Home() {
         )}
 
         {/* ========================================================================= */}
-        {/* PORTAL 6: IMMUTABLE AUDIT TRAIL                                           */}
+        {/* PORTAL: IMMUTABLE AUDIT TRAIL                                             */}
         {/* ========================================================================= */}
         {activePortal === "audit" && (
           <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm space-y-4">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
               <div className="flex items-center justify-between pb-4 border-b border-slate-100">
                 <div>
                   <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -1311,6 +1601,177 @@ export default function Home() {
       </main>
 
       {/* ========================================================================= */}
+      {/* MODAL: Switch Persona / Login                                             */}
+      {/* ========================================================================= */}
+      {showPersonaModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-3xl p-6 max-w-md w-full shadow-2xl space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b">
+              <div>
+                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <KeyRound className="w-5 h-5 text-teal-600" />
+                  Switch User Account / Login
+                </h3>
+                <p className="text-xs text-slate-500">Choose a pre-seeded persona or log in with credentials</p>
+              </div>
+              <button onClick={() => setShowPersonaModal(false)} className="text-slate-400">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Quick Persona Buttons */}
+            <div className="space-y-2">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                Quick-Switch Demo Persona
+              </span>
+
+              <button
+                onClick={() => switchPersona("DOCTOR")}
+                className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition ${
+                  currentRole === "DOCTOR" ? "bg-teal-50 border-teal-500" : "bg-slate-50 hover:bg-slate-100 border-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center">
+                    <Stethoscope className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">Dr. Arvind Swaminathan</div>
+                    <div className="text-[11px] text-slate-500">Internal Medicine &bull; Apollo Hospitals</div>
+                  </div>
+                </div>
+                {currentRole === "DOCTOR" && <Check className="w-4 h-4 text-teal-600" />}
+              </button>
+
+              <button
+                onClick={() => switchPersona("PATIENT")}
+                className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition ${
+                  currentRole === "PATIENT" ? "bg-teal-50 border-teal-500" : "bg-slate-50 hover:bg-slate-100 border-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-indigo-600 text-white flex items-center justify-center">
+                    <User className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">Rajesh Sharma</div>
+                    <div className="text-[11px] text-slate-500">ABHA: 91-4405-2026-0001 (Diabetes, HTN)</div>
+                  </div>
+                </div>
+                {currentRole === "PATIENT" && <Check className="w-4 h-4 text-teal-600" />}
+              </button>
+
+              <button
+                onClick={() => switchPersona("LAB")}
+                className={`w-full p-3 rounded-2xl border text-left flex items-center justify-between transition ${
+                  currentRole === "LAB" ? "bg-teal-50 border-teal-500" : "bg-slate-50 hover:bg-slate-100 border-slate-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center">
+                    <FlaskConical className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="text-xs font-bold text-slate-900">Dr. Lal PathLabs Specialist</div>
+                    <div className="text-[11px] text-slate-500">NABL-DL-2026-891 &bull; Diagnostic Tech</div>
+                  </div>
+                </div>
+                {currentRole === "LAB" && <Check className="w-4 h-4 text-teal-600" />}
+              </button>
+            </div>
+
+            {/* Custom Login Form */}
+            <div className="pt-2 border-t space-y-3">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">
+                {isRegisterMode ? "Register New Account" : "Or Custom Login (Email & Password)"}
+              </span>
+
+              {authError && (
+                <div className="p-2.5 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-medium">
+                  {authError}
+                </div>
+              )}
+
+              <form onSubmit={handleCustomAuth} className="space-y-3">
+                {isRegisterMode && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Full Name</label>
+                    <input
+                      type="text"
+                      required
+                      value={authFullName}
+                      onChange={(e) => setAuthFullName(e.target.value)}
+                      placeholder="e.g. Dr. Ramesh Gupta"
+                      className="w-full bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Email</label>
+                  <input
+                    type="email"
+                    required
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                    placeholder="name@hospital.in"
+                    className="w-full bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2"
+                  />
+                </div>
+
+                <div>
+                  <label className="text-xs font-semibold text-slate-700 block mb-1">Password</label>
+                  <input
+                    type="password"
+                    required
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2"
+                  />
+                </div>
+
+                {isRegisterMode && (
+                  <div>
+                    <label className="text-xs font-semibold text-slate-700 block mb-1">Role</label>
+                    <select
+                      value={authRole}
+                      onChange={(e) => setAuthRole(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2"
+                    >
+                      <option value="PATIENT">Patient</option>
+                      <option value="DOCTOR">Doctor / Practitioner</option>
+                      <option value="LAB">Diagnostic Laboratory</option>
+                    </select>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegisterMode(!isRegisterMode);
+                      setAuthError("");
+                    }}
+                    className="text-xs text-teal-600 hover:underline"
+                  >
+                    {isRegisterMode ? "Already registered? Log in" : "Need an account? Register"}
+                  </button>
+
+                  <button
+                    type="submit"
+                    className="bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-xl shadow"
+                  >
+                    {isRegisterMode ? "Create Account" : "Sign In"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
       {/* MODAL: Record Encounter (Doctor)                                          */}
       {/* ========================================================================= */}
       {showEncounterModal && (
@@ -1321,10 +1782,7 @@ export default function Home() {
                 <Stethoscope className="w-5 h-5 text-teal-600" />
                 Record Clinical Consultation Encounter
               </h3>
-              <button
-                onClick={() => setShowEncounterModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
+              <button onClick={() => setShowEncounterModal(false)} className="text-slate-400">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1337,12 +1795,11 @@ export default function Home() {
                   required
                   value={encounterReason}
                   onChange={(e) => setEncounterReason(e.target.value)}
-                  placeholder="e.g. Follow-up for Glycemic & BP Control"
+                  placeholder="e.g. Follow-up for Glycemic &amp; BP Control"
                   className="w-full bg-slate-50 border border-slate-300 text-xs rounded-xl px-3 py-2"
                 />
               </div>
 
-              {/* SNOMED CT Terminology Lookup */}
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700 block">
                   Diagnosis (Validated SNOMED CT Concept Search)
@@ -1389,7 +1846,6 @@ export default function Home() {
                 )}
               </div>
 
-              {/* Prescription */}
               <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2">
                 <label className="text-xs font-bold text-slate-800 block">Prescription (Optional)</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -1519,7 +1975,7 @@ export default function Home() {
                   type="submit"
                   className="px-5 py-2 text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow"
                 >
-                  Submit & Notify Patient
+                  Submit &amp; Notify Patient
                 </button>
               </div>
             </form>
