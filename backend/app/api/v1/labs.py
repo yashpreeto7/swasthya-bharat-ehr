@@ -14,7 +14,7 @@ router = APIRouter(prefix="/labs", tags=["Laboratories"])
 
 @router.get("/orders")
 async def get_lab_orders(
-    current_user: User = Depends(require_roles("LAB")),
+    current_user: User = Depends(require_roles("LAB", "LAB_STAFF")),
     db: AsyncSession = Depends(get_db)
 ):
     stmt_lab = select(Lab).where(Lab.user_id == current_user.id)
@@ -36,17 +36,29 @@ async def get_lab_orders(
     return [
         {
             "id": o.id,
+            "order_id": o.id,
             "patient_id": o.patient_id,
             "patient_name": o.patient.user.full_name if o.patient and o.patient.user else "Patient",
             "abha_id": o.patient.abha_id if o.patient else "N/A",
             "doctor_name": o.doctor.user.full_name if o.doctor and o.doctor.user else "Practitioner",
+            "test_code": o.test_code or "58800005",
             "test_name": o.test_name,
             "priority": o.priority,
             "status": o.status,
             "ordered_at": o.ordered_at.isoformat(),
             "completed_at": o.completed_at.isoformat() if o.completed_at else None,
             "clinical_notes": o.clinical_notes,
-            "observations_count": len(o.observations)
+            "observations_count": len(o.observations),
+            "observations": [
+                {
+                    "name": obs.test_name,
+                    "value": obs.value,
+                    "unit": obs.unit,
+                    "range": obs.reference_range,
+                    "is_abnormal": obs.is_abnormal
+                }
+                for obs in o.observations
+            ]
         }
         for o in orders
     ]
@@ -55,7 +67,7 @@ async def get_lab_orders(
 async def submit_lab_results(
     order_id: str,
     req: LabResultSubmit,
-    current_user: User = Depends(require_roles("LAB")),
+    current_user: User = Depends(require_roles("LAB", "LAB_STAFF")),
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(LabOrder).where(LabOrder.id == order_id).options(

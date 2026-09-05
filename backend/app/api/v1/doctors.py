@@ -12,6 +12,26 @@ from backend.app.core.audit_logger import log_audit_event
 
 router = APIRouter(prefix="/doctors", tags=["Doctors"])
 
+@router.get("")
+async def list_practitioners(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    stmt = select(Practitioner).options(selectinload(Practitioner.user))
+    practitioners = (await db.execute(stmt)).scalars().all()
+    return [
+        {
+            "practitioner_id": p.id,
+            "id": p.id,
+            "full_name": p.user.full_name if p.user else "Doctor",
+            "specialization": p.specialization,
+            "hospital_name": p.hospital_name,
+            "registration_number": p.registration_number,
+            "department": p.department
+        }
+        for p in practitioners
+    ]
+
 @router.get("/authorized-patients")
 async def get_authorized_patients(
     current_user: User = Depends(require_roles("DOCTOR")),

@@ -695,6 +695,44 @@ async def main():
         db.add(consent4)
 
         # -------------------------------------------------------------
+        # Active Pending Lab Orders for Intake Queue Testing
+        # -------------------------------------------------------------
+        pending_lo1 = LabOrder(
+            patient_id=p2.id,
+            doctor_id=doc1.id,
+            lab_id=lab.id,
+            test_code="58800005",
+            test_name="Repeat Platelet Count & Hematocrit",
+            priority="URGENT",
+            status="ORDERED",
+            ordered_at=now - timedelta(hours=3),
+            clinical_notes="Dengue fever follow-up day 6. Re-evaluate platelet count to verify marrow recovery."
+        )
+        pending_lo2 = LabOrder(
+            patient_id=p1.id,
+            doctor_id=doc1.id,
+            lab_id=lab.id,
+            test_code="271062006",
+            test_name="Urine Microalbumin & Creatinine Ratio",
+            priority="ROUTINE",
+            status="ORDERED",
+            ordered_at=now - timedelta(hours=6),
+            clinical_notes="Annual diabetic nephropathy screening for T2DM on Metformin therapy."
+        )
+        pending_lo3 = LabOrder(
+            patient_id=p3.id,
+            doctor_id=doc1.id,
+            lab_id=lab.id,
+            test_code="104177005",
+            test_name="Serum Electrolytes & Cardiac Biomarkers",
+            priority="STAT",
+            status="ORDERED",
+            ordered_at=now - timedelta(hours=1),
+            clinical_notes="Post-PTCA routine cardiac electrolyte check (Sodium, Potassium, Magnesium)."
+        )
+        db.add_all([pending_lo1, pending_lo2, pending_lo3])
+
+        # -------------------------------------------------------------
         # 7. Audit Logs
         # -------------------------------------------------------------
         audit1 = AuditLog(

@@ -81,49 +81,66 @@ async def build_patient_timeline(patient_id: str, db: AsyncSession):
     for e in encounters:
         timeline_events.append({
             "id": e.id,
+            "record_id": e.id,
             "type": "ENCOUNTER",
+            "event_type": "ENCOUNTER",
             "title": f"Consultation: {e.reason or 'Clinical Consultation'}",
             "date": e.encounter_date.isoformat(),
+            "timestamp": e.encounter_date.strftime("%Y-%m-%d %H:%M"),
             "doctor": e.doctor.user.full_name if e.doctor and e.doctor.user else "Practitioner",
             "hospital": e.doctor.hospital_name if e.doctor else "Hospital",
             "notes": e.clinical_notes,
+            "description": e.clinical_notes or f"Clinical outpatient encounter documented for {e.reason or 'Consultation'}.",
             "status": e.status
         })
 
     for c in conditions:
         timeline_events.append({
             "id": c.id,
-            "type": "DIAGNOSIS",
+            "record_id": c.id,
+            "type": "CONDITION",
+            "event_type": "CONDITION",
             "title": f"Diagnosis: {c.display_name}",
             "date": c.created_at.isoformat(),
+            "timestamp": c.created_at.strftime("%Y-%m-%d %H:%M"),
             "snomed_code": c.snomed_code,
             "status": c.clinical_status,
             "severity": c.severity,
-            "notes": c.notes
+            "notes": c.notes,
+            "description": f"SNOMED CT coded condition: {c.display_name} ({c.snomed_code}) - Status: {c.clinical_status}, Severity: {c.severity}."
         })
 
     for r in prescriptions:
         timeline_events.append({
             "id": r.id,
+            "record_id": r.id,
             "type": "PRESCRIPTION",
+            "event_type": "PRESCRIPTION",
             "title": f"Prescription: {r.medication_name}",
             "date": r.prescribed_at.isoformat(),
+            "timestamp": r.prescribed_at.strftime("%Y-%m-%d %H:%M"),
             "dosage": r.dosage,
             "frequency": r.frequency,
             "duration": r.duration,
             "doctor": r.doctor.user.full_name if r.doctor and r.doctor.user else "Doctor",
-            "instructions": r.instructions
+            "instructions": r.instructions,
+            "description": f"Dosage: {r.dosage} • Frequency: {r.frequency} • Duration: {r.duration}. Instructions: {r.instructions or 'Take as prescribed.'}"
         })
 
     for lo in lab_orders:
+        obs_summary = ", ".join([f"{obs.test_name}: {obs.value} {obs.unit or ''}" for obs in lo.observations]) if lo.observations else "Pending specimen analysis"
         timeline_events.append({
             "id": lo.id,
-            "type": "LAB_REPORT",
-            "title": f"Laboratory: {lo.test_name}",
+            "record_id": lo.id,
+            "type": "DIAGNOSTIC_REPORT",
+            "event_type": "DIAGNOSTIC_REPORT",
+            "title": f"Diagnostic Report: {lo.test_name}",
             "date": lo.ordered_at.isoformat(),
+            "timestamp": lo.ordered_at.strftime("%Y-%m-%d %H:%M"),
             "status": lo.status,
             "conclusion": lo.diagnostic_report.conclusion if lo.diagnostic_report else None,
             "report_id": lo.diagnostic_report.id if lo.diagnostic_report else None,
+            "description": f"Status: {lo.status}. Findings: {obs_summary}. Conclusion: {lo.diagnostic_report.conclusion if lo.diagnostic_report else 'Awaiting lab validation.'}",
             "observations": [
                 {
                     "name": obs.test_name,
