@@ -6,18 +6,17 @@ import {
   FileText, CheckCircle2, AlertTriangle, Clock, Calendar, Lock,
   Search, Plus, Sparkles, Send, RefreshCw, ChevronRight, X, Eye, FileCode2,
   Network, ArrowRight, KeyRound, LogIn, LogOut, Check, ChevronDown,
-  Layers, Database, Moon, Sun, Palette, ShieldAlert, Cpu, HeartPulse
+  Moon, Sun, HelpCircle, HeartPulse, Pill, FileSpreadsheet, ShieldAlert
 } from "lucide-react";
 
 export default function Home() {
   // ── Role & Active View State ──
   const [currentRole, setCurrentRole] = useState<"DOCTOR" | "PATIENT" | "LAB">("DOCTOR");
-  const [currentUserName, setCurrentUserName] = useState("Dr. Arvind Swaminathan, MD");
+  const [currentUserName, setCurrentUserName] = useState("Dr. Arvind Swaminathan");
+  const [currentUserSubtitle, setCurrentUserSubtitle] = useState("MD, Internal Medicine • Apollo Hospitals");
   const [activePortal, setActivePortal] = useState<string>("doctor_workspace");
   const [showPersonaModal, setShowPersonaModal] = useState(false);
-
-  // ── Sovereign Theme Engine ──
-  const [activeTheme, setActiveTheme] = useState<"sovereign-manifesto" | "sovereign-onyx" | "sovereign-slate">("sovereign-manifesto");
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   // ── Auth Tokens ──
   const [tokens, setTokens] = useState<Record<string, string>>({});
@@ -35,6 +34,7 @@ export default function Home() {
   const [patients, setPatients] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>("");
   const [timeline, setTimeline] = useState<any>(null);
+  const [timelineFilter, setTimelineFilter] = useState<string>("ALL");
   const [loadingTimeline, setLoadingTimeline] = useState(false);
 
   // ── Lab Portal State ──
@@ -88,10 +88,12 @@ export default function Home() {
   const [abdmHiuTransferResult, setAbdmHiuTransferResult] = useState<any>(null);
   const [loadingAbdm, setLoadingAbdm] = useState(false);
 
-  // Apply theme to html tag
-  useEffect(() => {
-    document.documentElement.setAttribute("data-theme", activeTheme);
-  }, [activeTheme]);
+  // Toggle Dark Mode
+  const toggleDarkMode = () => {
+    const next = !isDarkMode;
+    setIsDarkMode(next);
+    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+  };
 
   // Initial load
   useEffect(() => {
@@ -155,18 +157,21 @@ export default function Home() {
     }
   };
 
-  const switchPersona = (role: "DOCTOR" | "PATIENT" | "LAB") => {
+  const switchPersona = (role: "DOCTOR" | "PATIENT" | "LAB", customEmail?: string) => {
     setCurrentRole(role);
     if (role === "DOCTOR") {
-      setCurrentUserName("Dr. Arvind Swaminathan, MD");
+      setCurrentUserName("Dr. Arvind Swaminathan");
+      setCurrentUserSubtitle("MD, Internal Medicine • Apollo Hospitals");
       setActiveToken(tokens.doctor);
       setActivePortal("doctor_workspace");
     } else if (role === "PATIENT") {
-      setCurrentUserName("Rajesh Sharma (ABHA Owner)");
+      setCurrentUserName("Rajesh Sharma");
+      setCurrentUserSubtitle("ABHA: 91-4405-2026-0001 • Dwarka, New Delhi");
       setActiveToken(tokens.patient);
       setActivePortal("patient_abha");
     } else {
       setCurrentUserName("Dr. Lal PathLabs Specialist");
+      setCurrentUserSubtitle("NABL License: NABL-DL-2026-891 • Delhi Hub");
       setActiveToken(tokens.lab);
       setActivePortal("lab_queue");
     }
@@ -191,6 +196,7 @@ export default function Home() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Registration failed");
         setCurrentUserName(data.user.full_name);
+        setCurrentUserSubtitle(`${data.user.role} Account`);
         setCurrentRole(data.user.role as any);
         setActiveToken(data.access_token);
         if (data.user.role === "DOCTOR") setActivePortal("doctor_workspace");
@@ -205,6 +211,7 @@ export default function Home() {
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Login failed");
         setCurrentUserName(data.user.full_name);
+        setCurrentUserSubtitle(`${data.user.role} Account`);
         setCurrentRole(data.user.role as any);
         setActiveToken(data.access_token);
         if (data.user.role === "DOCTOR") setActivePortal("doctor_workspace");
@@ -250,7 +257,7 @@ export default function Home() {
 
   const fetchConsents = async (token = tokens.patient) => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/consent/my-consents", {
+      const res = await fetch("http://localhost:8000/api/v1/consent/patient", {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -262,7 +269,7 @@ export default function Home() {
 
   const fetchNotifications = async (token = tokens.patient) => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/reminders/my-notifications", {
+      const res = await fetch("http://localhost:8000/api/v1/reminders/notifications", {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -289,7 +296,7 @@ export default function Home() {
 
   const fetchAuditLogs = async (token = tokens.patient) => {
     try {
-      const res = await fetch("http://localhost:8000/api/v1/audit/logs", {
+      const res = await fetch("http://localhost:8000/api/v1/audit/patient", {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -338,17 +345,16 @@ export default function Home() {
   const handleAbdmConfirmLink = async () => {
     setLoadingAbdm(true);
     try {
-      const res = await fetch("http://localhost:8000/api/v1/abdm/hip/link/token/confirm", {
+      const res = await fetch("http://localhost:8000/api/v1/abdm/hip/link/confirm", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          link_token_ref: abdmDiscovered?.link_token_ref || "HIP-LINK-TOKEN-REF",
-          auth_code_otp: abdmOtpInput,
-          abha_id: abdmAbhaInput
+          patient_id: abdmDiscovered?.patient_id || selectedPatientId,
+          otp: abdmOtpInput
         })
       });
       const data = await res.json();
-      setAbdmLinkStatus(data.status === "LINKED" ? "Successfully Linked to ABHA!" : "Link Failed");
+      setAbdmLinkStatus(data.status === "LINKED" ? "Verified & Linked to ABHA Account" : "Linking Failed");
     } catch (err) {
       console.error(err);
       setAbdmLinkStatus("Link error");
@@ -361,16 +367,9 @@ export default function Home() {
     setLoadingAbdm(true);
     setAbdmHiuTransferResult(null);
     try {
-      const res = await fetch("http://localhost:8000/api/v1/abdm/hiu/health-information/fetch", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${tokens.doctor}`
-        },
-        body: JSON.stringify({
-          consent_id: abdmHiuConsentId || (patients[0]?.consent_id),
-          hiu_id: "MEDINDIA-HIU-01"
-        })
+      const consentToUse = abdmHiuConsentId || (patients[0]?.consent_id);
+      const res = await fetch(`http://localhost:8000/api/v1/abdm/hiu/health-information/fetch/${consentToUse}`, {
+        headers: { Authorization: `Bearer ${tokens.doctor}` }
       });
       const data = await res.json();
       setAbdmHiuTransferResult(data);
@@ -401,46 +400,44 @@ export default function Home() {
     e.preventDefault();
     if (!selectedPatientId) return;
     try {
-      const encRes = await fetch("http://localhost:8000/api/v1/doctors/encounters", {
+      const payload = {
+        patient_id: selectedPatientId,
+        encounter_type: "AMBULATORY",
+        reason: encounterReason || "Clinical Evaluation",
+        clinical_notes: encounterNotes,
+        conditions: selectedSnomed ? [{
+          snomed_code: selectedSnomed.concept_id,
+          display_name: selectedSnomed.display_name,
+          clinical_status: "ACTIVE",
+          severity: "MODERATE"
+        }] : [],
+        prescriptions: rxMedName ? [{
+          medication_name: rxMedName,
+          dosage: rxDosage,
+          frequency: rxFrequency,
+          duration: rxDuration,
+          instructions: "Take as prescribed."
+        }] : []
+      };
+
+      const res = await fetch("http://localhost:8000/api/v1/doctors/encounters", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${tokens.doctor}`
         },
-        body: JSON.stringify({
-          patient_id: selectedPatientId,
-          reason: encounterReason || "Clinical Evaluation",
-          clinical_notes: encounterNotes,
-          condition_name: selectedSnomed?.display_name || "General Consultation",
-          snomed_code: selectedSnomed?.concept_id || "44054006"
-        })
+        body: JSON.stringify(payload)
       });
 
-      if (encRes.ok && rxMedName) {
-        await fetch("http://localhost:8000/api/v1/doctors/prescriptions", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${tokens.doctor}`
-          },
-          body: JSON.stringify({
-            patient_id: selectedPatientId,
-            medication_name: rxMedName,
-            dosage: rxDosage,
-            frequency: rxFrequency,
-            duration: rxDuration,
-            instructions: "Take as prescribed with water."
-          })
-        });
+      if (res.ok) {
+        setShowEncounterModal(false);
+        setEncounterReason("");
+        setEncounterNotes("");
+        setSelectedSnomed(null);
+        setRxMedName("");
+        fetchTimeline(selectedPatientId);
+        fetchAuditLogs(tokens.patient);
       }
-
-      setShowEncounterModal(false);
-      setEncounterReason("");
-      setEncounterNotes("");
-      setSelectedSnomed(null);
-      setRxMedName("");
-      fetchTimeline(selectedPatientId);
-      fetchAuditLogs(tokens.patient);
     } catch (err) {
       console.error(err);
     }
@@ -450,8 +447,7 @@ export default function Home() {
     if (!selectedPatientId) return;
     setLoadingAiSummary(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/ai/clinical-brief/${selectedPatientId}`, {
-        method: "POST",
+      const res = await fetch(`http://localhost:8000/api/v1/ai/summary/${selectedPatientId}`, {
         headers: { Authorization: `Bearer ${tokens.doctor}` }
       });
       const data = await res.json();
@@ -464,12 +460,12 @@ export default function Home() {
     }
   };
 
-  const askAiAssistant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiQuery.trim() || !selectedPatientId) return;
+  const askAiAssistant = async (queryText?: string) => {
+    const q = queryText || aiQuery;
+    if (!q.trim() || !selectedPatientId) return;
     setLoadingAiQuery(true);
     try {
-      const res = await fetch("http://localhost:8000/api/v1/ai/chat", {
+      const res = await fetch("http://localhost:8000/api/v1/ai/query", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -477,7 +473,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           patient_id: selectedPatientId,
-          query: aiQuery
+          query: q
         })
       });
       const data = await res.json();
@@ -493,7 +489,7 @@ export default function Home() {
   const handleExplainReport = async (reportId: string) => {
     setLoadingLabExplainer(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/v1/ai/lab-explainer/${reportId}`, {
+      const res = await fetch(`http://localhost:8000/api/v1/ai/explain-lab/${reportId}`, {
         headers: { Authorization: `Bearer ${tokens.patient}` }
       });
       const data = await res.json();
@@ -517,7 +513,7 @@ export default function Home() {
           Authorization: `Bearer ${tokens.lab}`
         },
         body: JSON.stringify({
-          conclusion: labConclusion || "Diagnostic investigation completed. Verified by Lab Specialist.",
+          conclusion: labConclusion || "Diagnostic investigation completed and verified.",
           observations: [
             {
               test_code: selectedLabOrder.test_code || "58800005",
@@ -586,92 +582,134 @@ export default function Home() {
 
   const selectedPatient = patients.find(p => p.patient_id === selectedPatientId);
 
+  // Filtered timeline events
+  const filteredEvents = timeline?.events?.filter((evt: any) => {
+    if (timelineFilter === "ALL") return true;
+    return evt.event_type === timelineFilter;
+  }) || [];
+
+  // Sample AI queries & grounded knowledge base
+  const sampleAiPrompts = [
+    "What is the latest HbA1c trend and diabetic complication risk?",
+    "Are there any drug-drug interactions between Metformin and Telmisartan?",
+    "Summarize vital signs and blood pressure readings over consultations.",
+    "Check patient allergy records before prescribing new medications.",
+    "Explain recent Platelet Count drop for Dengue follow-up.",
+    "What lifestyle and dietary modifications are indicated for this patient?"
+  ];
+
+  const sampleClinicalQnA = [
+    {
+      q: "What is the latest HbA1c trend and diabetic complication risk?",
+      a: "Latest HbA1c is 7.8% (elevated, ref 4.0-5.6%) with Fasting Blood Glucose at 142 mg/dL. Renal function remains preserved with Serum Creatinine at 0.9 mg/dL. Patient is currently on Metformin 500mg BD. Suggest considering dosage titration or SGLT2 inhibitor addition, with annual diabetic retinopathy and microalbuminuria screening.",
+      citations: ["Obs#HbA1c-7.8%", "Obs#FBG-142mgdL", "Cond#Type-2-Diabetes"]
+    },
+    {
+      q: "Are there any drug-drug interactions between Metformin and Telmisartan?",
+      a: "No adverse pharmacodynamic contraindication. Metformin (biguanide) and Telmisartan (angiotensin II receptor blocker) provide synergistic cardiorenal protection in diabetic hypertension. Recommendation: Monitor serum creatinine, eGFR, and electrolytes biannually.",
+      citations: ["Rx#Metformin-500mg", "Rx#Telmisartan-40mg"]
+    },
+    {
+      q: "Explain recent Platelet Count drop for Dengue follow-up.",
+      a: "Platelet count dropped to 85,000/mcL (Moderate Thrombocytopenia secondary to Dengue Fever, SNOMED: 38362002). Hemodynamic vitals are stable. Recommendation: Oral fluid hydration, avoid NSAIDs/antiplatelets, repeat CBC every 24 hours until platelets exceed 100,000/mcL.",
+      citations: ["Obs#Platelets-85k", "Cond#Dengue-Infection"]
+    },
+    {
+      q: "Check patient allergy records before prescribing new medications.",
+      a: "No known active drug or food allergies documented across all ABDM linked health repositories for the active patient profile.",
+      citations: ["Allergy#Nil-Documented", "ABDM#Consent-Verified"]
+    }
+  ];
+
   return (
-    <div className="min-h-screen flex flex-col font-sans selection:bg-[#d42b2b] selection:text-white">
-      {/* ── Top Sovereign Architectural Header ── */}
-      <header className="bg-[var(--bg-card)] border-b border-[var(--border-main)] sticky top-0 z-40 px-4 md:px-8 py-3 shadow-[0_2px_0_var(--border-main)]">
+    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-[#0b0f19] text-slate-900 dark:text-slate-100 font-sans transition-colors duration-200">
+      
+      {/* ── REVAMPED MODERN HEALTHCARE NAVBAR ── */}
+      <header className="bg-slate-900 border-b border-slate-800 text-white sticky top-0 z-50 px-4 md:px-8 py-2.5 shadow-md">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
           
-          {/* Brand Logo & Editorial Title */}
+          {/* Brand Logo & Clinical OS Title */}
           <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 bg-[var(--color-brand)] text-white flex items-center justify-center border border-[var(--border-main)] shadow-[2px_2px_0_var(--border-main)]">
-                <HeartPulse className="w-5 h-5" />
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+                <HeartPulse className="w-5 h-5 text-white" />
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <span className="font-editorial text-xl font-bold tracking-tight text-[var(--text-main)]">
-                    MedIndia HealthOS
+                  <span className="font-bold text-lg tracking-tight text-white">
+                    MedIndia <span className="text-teal-400 font-semibold">HealthOS</span>
                   </span>
-                  <span className="manifesto-badge bg-[#f5f0e8] text-[#0a0a0a]">
-                    ABDM • FHIR R4
-                  </span>
-                  <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                    SNOMED CT
+                  <span className="text-[10px] font-semibold uppercase tracking-wider bg-teal-500/20 text-teal-300 border border-teal-500/30 px-2 py-0.5 rounded-full">
+                    ABDM M1-M3
                   </span>
                 </div>
-                <p className="text-[11px] font-mono text-[var(--text-muted)] tracking-wider">
-                  NATIONAL ELECTRONIC HEALTH RECORD PLATFORM // INDIA
+                <p className="text-[11px] text-slate-400">
+                  National Interoperable Health Record Architecture
                 </p>
               </div>
             </div>
 
-            {/* Mobile quick indicator */}
-            <div className="md:hidden flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <span className="text-[10px] font-mono uppercase">{currentRole}</span>
-            </div>
+            {/* Mobile persona indicator */}
+            <button
+              onClick={() => setShowPersonaModal(true)}
+              className="md:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-800 border border-slate-700 text-xs text-white"
+            >
+              <span className={`w-2 h-2 rounded-full ${
+                currentRole === "DOCTOR" ? "bg-teal-400" : currentRole === "PATIENT" ? "bg-amber-400" : "bg-cyan-400"
+              }`} />
+              <span>{currentRole}</span>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
+            </button>
           </div>
 
-          {/* ── ROLE-SPECIFIC DEDICATED NAVIGATION BAR ── */}
-          {/* Note: Patient never sees Doctor tabs; Doctor never sees Patient profile; Lab has its own queue */}
-          <nav className="flex items-center gap-1 overflow-x-auto w-full md:w-auto py-1">
+          {/* ── ROLE-SPECIFIC SEGMENTED NAVIGATION PILLS ── */}
+          <nav className="flex items-center gap-1 bg-slate-800/90 p-1 rounded-lg border border-slate-700/80 overflow-x-auto w-full md:w-auto">
             
             {/* 1. DOCTOR NAVIGATION */}
             {currentRole === "DOCTOR" && (
               <>
                 <button
                   onClick={() => setActivePortal("doctor_workspace")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "doctor_workspace"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <Stethoscope className="w-3.5 h-3.5" />
-                  Doctor Workstation
+                  Clinical Workstation
                 </button>
 
                 <button
                   onClick={() => setActivePortal("doctor_encounters")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "doctor_encounters"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <FileText className="w-3.5 h-3.5" />
-                  SNOMED Encounters
+                  Encounters & SNOMED
                 </button>
 
                 <button
                   onClick={() => setActivePortal("doctor_ai")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "doctor_ai"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                   Clinical AI Copilot
                 </button>
 
                 <button
                   onClick={() => setActivePortal("doctor_abdm_hiu")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "doctor_abdm_hiu"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <Network className="w-3.5 h-3.5" />
@@ -683,10 +721,10 @@ export default function Home() {
                     setActivePortal("fhir_inspector");
                     fetchFhir("Patient");
                   }}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "fhir_inspector"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <FileCode2 className="w-3.5 h-3.5" />
@@ -700,58 +738,58 @@ export default function Home() {
               <>
                 <button
                   onClick={() => setActivePortal("patient_abha")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "patient_abha"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
-                  <User className="w-3.5 h-3.5" />
+                  <ShieldCheck className="w-3.5 h-3.5" />
                   My ABHA Card
                 </button>
 
                 <button
                   onClick={() => setActivePortal("patient_records")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "patient_records"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <Activity className="w-3.5 h-3.5" />
-                  My Health Timeline
+                  Health Timeline
                 </button>
 
                 <button
                   onClick={() => setActivePortal("patient_consent")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "patient_consent"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <Lock className="w-3.5 h-3.5" />
                   Consent Manager
                 </button>
 
                 <button
                   onClick={() => setActivePortal("patient_audit")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "patient_audit"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
-                  <Lock className="w-3.5 h-3.5" />
+                  <Eye className="w-3.5 h-3.5" />
                   Privacy Audit Log
                 </button>
 
                 <button
                   onClick={() => setActivePortal("patient_reminders")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "patient_reminders"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-teal-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <Bell className="w-3.5 h-3.5" />
@@ -765,10 +803,10 @@ export default function Home() {
               <>
                 <button
                   onClick={() => setActivePortal("lab_queue")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "lab_queue"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-cyan-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <FlaskConical className="w-3.5 h-3.5" />
@@ -777,10 +815,10 @@ export default function Home() {
 
                 <button
                   onClick={() => setActivePortal("lab_abdm_hip")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "lab_abdm_hip"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-cyan-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
                   <Network className="w-3.5 h-3.5" />
@@ -789,137 +827,116 @@ export default function Home() {
 
                 <button
                   onClick={() => setActivePortal("lab_nabl")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-bold uppercase transition-all manifesto-border ${
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
                     activePortal === "lab_nabl"
-                      ? "bg-[var(--color-brand)] text-white shadow-[2px_2px_0_var(--border-main)]"
-                      : "bg-[var(--bg-card)] text-[var(--text-muted)] hover:text-[var(--text-main)] hover:bg-[var(--bg-card-hover)]"
+                      ? "bg-cyan-600 text-white shadow-sm"
+                      : "text-slate-300 hover:text-white hover:bg-slate-700/60"
                   }`}
                 >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  NABL Accreditation
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  NABL Quality Profile
                 </button>
               </>
             )}
 
           </nav>
 
-          {/* ── Controls: Theme Switcher & Persona Switcher ── */}
-          <div className="flex items-center gap-2">
+          {/* ── CONTROLS: DARK MODE & PERSONA SWITCHER ── */}
+          <div className="flex items-center gap-2.5">
             
-            {/* Theme Toggle (Manifesto / Onyx / Slate) */}
-            <div className="flex items-center manifesto-border bg-[var(--bg-card)] p-0.5 shadow-[1px_1px_0_var(--border-main)]">
-              <button
-                onClick={() => setActiveTheme("sovereign-manifesto")}
-                title="Sovereign Manifesto (Editorial Swiss Parchment)"
-                className={`px-2 py-1 text-[10px] font-mono font-bold uppercase ${
-                  activeTheme === "sovereign-manifesto"
-                    ? "bg-[#d42b2b] text-white"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                }`}
-              >
-                Parchment
-              </button>
-              <button
-                onClick={() => setActiveTheme("sovereign-onyx")}
-                title="Sovereign Onyx (Dark Titanium)"
-                className={`px-2 py-1 text-[10px] font-mono font-bold uppercase ${
-                  activeTheme === "sovereign-onyx"
-                    ? "bg-[#3b82f6] text-white"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                }`}
-              >
-                Onyx
-              </button>
-              <button
-                onClick={() => setActiveTheme("sovereign-slate")}
-                title="Sovereign Slate (Deep Indigo)"
-                className={`px-2 py-1 text-[10px] font-mono font-bold uppercase ${
-                  activeTheme === "sovereign-slate"
-                    ? "bg-[#6366f1] text-white"
-                    : "text-[var(--text-muted)] hover:text-[var(--text-main)]"
-                }`}
-              >
-                Slate
-              </button>
-            </div>
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className="w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center justify-center text-slate-300 hover:text-white transition-colors"
+              title="Toggle Dark Mode"
+            >
+              {isDarkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-300" />}
+            </button>
 
-            {/* Persona Switcher Trigger */}
+            {/* Persona Switcher Button */}
             <button
               onClick={() => setShowPersonaModal(true)}
-              className="manifesto-btn px-3 py-1.5 flex items-center gap-2 text-xs font-mono font-bold text-[var(--text-main)]"
+              className="hidden md:flex items-center gap-2.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700/90 border border-slate-700 text-left transition-all"
             >
-              <span className={`w-2 h-2 rounded-full ${
-                currentRole === "DOCTOR" ? "bg-emerald-600" :
-                currentRole === "PATIENT" ? "bg-amber-600" : "bg-cyan-600"
-              }`} />
-              <span className="truncate max-w-[130px]">{currentUserName}</span>
-              <ChevronDown className="w-3.5 h-3.5 opacity-60" />
+              <div className={`w-7 h-7 rounded-md flex items-center justify-center font-bold text-xs text-white ${
+                currentRole === "DOCTOR" ? "bg-indigo-600" :
+                currentRole === "PATIENT" ? "bg-teal-600" : "bg-cyan-600"
+              }`}>
+                {currentRole === "DOCTOR" ? "Dr" : currentRole === "PATIENT" ? "Pt" : "Lb"}
+              </div>
+              <div className="leading-tight">
+                <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span className="truncate max-w-[130px]">{currentUserName}</span>
+                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.2 rounded bg-slate-900 text-slate-300 border border-slate-700">
+                    {currentRole}
+                  </span>
+                </div>
+                <div className="text-[10px] text-slate-400 truncate max-w-[150px]">
+                  {currentUserSubtitle}
+                </div>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-1" />
             </button>
+
           </div>
 
         </div>
       </header>
 
-      {/* ── Main Workspace Body ── */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-8 space-y-6">
+      {/* ── MAIN WORKSPACE CONTENT ── */}
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
 
         {/* ─────────────────────────────────────────────────────────────
-            A. DOCTOR PORTAL VIEWS
+            A. DOCTOR WORKSPACE
             ───────────────────────────────────────────────────────────── */}
         {currentRole === "DOCTOR" && (
           <div>
-            {/* View A1: Doctor Workspace & Clinical Roster */}
+            {/* View A1: Clinical Workstation */}
             {activePortal === "doctor_workspace" && (
               <div className="space-y-6">
                 
-                {/* Doctor Section Header */}
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[var(--border-main)] pb-4">
+                {/* Doctor Banner */}
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold text-[var(--color-brand)]">01 // CLINICAL WORKSTATION</span>
-                      <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                        ACTIVE CONSENT ENFORCED
-                      </span>
-                    </div>
-                    <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                      Practitioner Clinical Workspace
+                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                      Clinical Consultation Workstation
                     </h1>
-                    <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                      Attending: Dr. Arvind Swaminathan, MD (NMC: MCI-74892) &bull; Apollo Hospitals, Delhi
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                      Attending: Dr. Arvind Swaminathan, MD (NMC: MCI-74892) • Apollo Indraprastha Hospital
                     </p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setShowEncounterModal(true)}
-                      className="manifesto-btn-primary px-4 py-2 text-xs font-mono font-bold flex items-center gap-1.5 uppercase"
+                      className="btn-primary px-3.5 py-2 text-xs flex items-center gap-1.5"
                     >
                       <Plus className="w-4 h-4" />
-                      Document Visit (SNOMED CT)
+                      Document Encounter (SNOMED)
                     </button>
                     <button
                       onClick={generateAiSummary}
                       disabled={loadingAiSummary || !selectedPatientId}
-                      className="manifesto-btn px-4 py-2 text-xs font-mono font-bold flex items-center gap-1.5 uppercase text-[var(--text-main)]"
+                      className="btn-secondary px-3.5 py-2 text-xs flex items-center gap-1.5"
                     >
-                      <Sparkles className="w-4 h-4 text-[var(--color-brand)]" />
+                      <Sparkles className="w-4 h-4 text-amber-500" />
                       {loadingAiSummary ? "Synthesizing..." : "Grounded AI Brief"}
                     </button>
                   </div>
                 </div>
 
-                {/* Patient Selector Strip */}
-                <div className="manifesto-card p-4">
+                {/* Patient Roster Cards */}
+                <div className="medical-card p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      Authorized Patient Roster ({patients.length} under active consent)
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Authorized Patient Roster ({patients.length} active consents)
                     </span>
-                    <span className="font-mono text-[11px] text-[var(--text-subtle)]">
-                      SELECT TO LOAD LONGITUDINAL EHR TIMELINE
+                    <span className="text-xs text-slate-400">
+                      Click a patient to load complete longitudinal EHR
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                     {patients.map(pat => {
                       const isSel = pat.patient_id === selectedPatientId;
                       return (
@@ -930,24 +947,26 @@ export default function Home() {
                             setAbdmHiuConsentId(pat.consent_id);
                             fetchTimeline(pat.patient_id);
                           }}
-                          className={`manifesto-border p-3 cursor-pointer transition-all ${
+                          className={`p-3 rounded-lg cursor-pointer transition-all border ${
                             isSel
-                              ? "bg-[var(--bg-card)] shadow-[4px_4px_0_var(--color-brand)] border-[var(--color-brand)]"
-                              : "bg-[var(--bg-card)] hover:shadow-[3px_3px_0_var(--border-main)] opacity-85 hover:opacity-100"
+                              ? "border-indigo-600 bg-indigo-50/70 dark:bg-indigo-950/40 text-slate-900 dark:text-white shadow-sm ring-1 ring-indigo-500"
+                              : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                         >
                           <div className="flex items-center justify-between">
-                            <span className="font-bold text-sm text-[var(--text-main)]">{pat.full_name}</span>
-                            <span className="manifesto-badge bg-[#f5f0e8] text-[#0a0a0a]">
-                              ABHA: {pat.abha_id}
+                            <span className="font-bold text-sm text-slate-900 dark:text-white">{pat.full_name}</span>
+                            <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                              {pat.blood_group || "O+"}
                             </span>
                           </div>
-                          <div className="mt-2 text-xs text-[var(--text-muted)] flex items-center gap-3 font-mono">
+                          <div className="mt-1 text-xs font-mono text-slate-500 dark:text-slate-400">
+                            ABHA: {pat.abha_id}
+                          </div>
+                          <div className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 flex items-center justify-between">
                             <span>{pat.gender}</span>
-                            <span>&bull;</span>
-                            <span>Blood: {pat.blood_group || "O+"}</span>
-                            <span>&bull;</span>
-                            <span className="text-emerald-700 font-bold">Consent Valid</span>
+                            <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Consent Active
+                            </span>
                           </div>
                         </div>
                       );
@@ -955,66 +974,66 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Patient Summary Banner & Active Vitals */}
+                {/* Patient Summary Header Card */}
                 {selectedPatient && (
-                  <div className="manifesto-card p-5 border-l-4 border-l-[var(--color-brand)]">
+                  <div className="medical-card p-5 border-l-4 border-l-indigo-600">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h2 className="font-editorial text-2xl font-bold text-[var(--text-main)]">
+                        <div className="flex items-center gap-2.5">
+                          <h2 className="text-xl font-bold text-slate-900 dark:text-white">
                             {selectedPatient.full_name}
                           </h2>
-                          <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">
+                          <span className="px-2 py-0.5 rounded-full text-xs font-mono font-semibold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                             ABHA: {selectedPatient.abha_id}
                           </span>
                         </div>
-                        <p className="text-xs text-[var(--text-muted)] font-mono mt-1">
-                          Consent ID: {selectedPatient.consent_id || "Active-Consent"} &bull; Categories: {selectedPatient.categories?.join(", ") || "ALL_RECORDS"}
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                          Gender: {selectedPatient.gender} • Blood Group: {selectedPatient.blood_group || "O+"} • Consent Scope: {selectedPatient.categories?.join(", ") || "ALL_RECORDS"}
                         </p>
                       </div>
 
-                      {/* Quick Vitals */}
-                      <div className="flex items-center gap-4 text-xs font-mono">
-                        <div className="manifesto-border p-2 bg-[var(--bg-card)] text-center min-w-[90px]">
-                          <div className="text-[10px] text-[var(--text-muted)] uppercase">Blood Pressure</div>
-                          <div className="font-bold text-sm text-[var(--text-main)]">132 / 86</div>
+                      {/* Vitals Summary */}
+                      <div className="flex items-center gap-3">
+                        <div className="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-center min-w-[90px]">
+                          <div className="text-[10px] text-slate-500 uppercase font-semibold">Blood Pressure</div>
+                          <div className="text-sm font-bold text-slate-900 dark:text-white">132/86 mmHg</div>
                         </div>
-                        <div className="manifesto-border p-2 bg-[var(--bg-card)] text-center min-w-[90px]">
-                          <div className="text-[10px] text-[var(--text-muted)] uppercase">HbA1c</div>
-                          <div className="font-bold text-sm text-[#b45309]">7.4 % (High)</div>
+                        <div className="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-center min-w-[90px]">
+                          <div className="text-[10px] text-slate-500 uppercase font-semibold">HbA1c / Platelet</div>
+                          <div className="text-sm font-bold text-amber-600 dark:text-amber-400">7.8% (Elevated)</div>
                         </div>
-                        <div className="manifesto-border p-2 bg-[var(--bg-card)] text-center min-w-[90px]">
-                          <div className="text-[10px] text-[var(--text-muted)] uppercase">Heart Rate</div>
-                          <div className="font-bold text-sm text-emerald-700">76 bpm</div>
+                        <div className="bg-slate-50 dark:bg-slate-800/80 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-center min-w-[90px]">
+                          <div className="text-[10px] text-slate-500 uppercase font-semibold">Heart Rate</div>
+                          <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400">76 bpm</div>
                         </div>
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* AI Brief Box (if generated) */}
+                {/* AI Grounded Summary (if generated) */}
                 {aiSummary && (
-                  <div className="manifesto-card p-5 bg-[#fefce8] border-[#b45309] shadow-[3px_3px_0_#b45309]">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="medical-card p-5 bg-amber-50/50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-800 space-y-3">
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-[#b45309]" />
-                        <span className="font-mono text-xs font-bold uppercase tracking-wider text-[#b45309]">
-                          Grounded Clinical AI Synthesis &bull; Strictly Cited Records
+                        <Sparkles className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+                        <span className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
+                          Grounded Clinical AI Synthesis • Zero Hallucination
                         </span>
                       </div>
-                      <span className="font-mono text-[10px] text-[var(--text-muted)]">
+                      <span className="text-xs text-amber-700 dark:text-amber-400 font-mono">
                         {aiSummary.records_cited?.length || 0} Records Cited
                       </span>
                     </div>
 
-                    <p className="text-xs text-[var(--text-main)] leading-relaxed whitespace-pre-wrap font-sans">
+                    <p className="text-xs leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap">
                       {aiSummary.summary}
                     </p>
 
                     {aiSummary.records_cited && aiSummary.records_cited.length > 0 && (
-                      <div className="mt-3 pt-2 border-t border-[#fde68a] flex flex-wrap gap-1.5">
+                      <div className="pt-2 border-t border-amber-200 dark:border-amber-800/60 flex flex-wrap gap-1.5">
                         {aiSummary.records_cited.map((rec: string, idx: number) => (
-                          <span key={idx} className="manifesto-badge bg-white text-[#b45309] text-[10px]">
+                          <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-white dark:bg-slate-800 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700 shadow-2xs">
                             {rec}
                           </span>
                         ))}
@@ -1024,62 +1043,75 @@ export default function Home() {
                 )}
 
                 {/* Longitudinal Clinical Timeline */}
-                <div className="manifesto-card p-5">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="font-mono text-xs font-bold uppercase tracking-wider text-[var(--text-muted)]">
-                      02 // Longitudinal Health Timeline ({timeline?.events?.length || 0} Events)
+                <div className="medical-card p-5 space-y-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                      Longitudinal Clinical History ({filteredEvents.length} Events)
                     </span>
-                    <button
-                      onClick={() => fetchTimeline(selectedPatientId)}
-                      className="text-xs font-mono text-[var(--text-muted)] hover:text-[var(--text-main)] flex items-center gap-1"
-                    >
-                      <RefreshCw className="w-3 h-3" /> Refresh
-                    </button>
+
+                    {/* Timeline Event Filters */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto">
+                      {["ALL", "ENCOUNTER", "PRESCRIPTION", "DIAGNOSTIC_REPORT", "CONDITION"].map(f => (
+                        <button
+                          key={f}
+                          onClick={() => setTimelineFilter(f)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-colors ${
+                            timelineFilter === f
+                              ? "filter-pill-active"
+                              : "filter-pill-inactive"
+                          }`}
+                        >
+                          {f.replace("_", " ")}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {loadingTimeline ? (
-                    <div className="py-8 text-center text-xs font-mono text-[var(--text-muted)]">
-                      Loading consent-verified clinical timeline...
+                    <div className="py-12 text-center text-xs text-slate-500">
+                      Loading consent-verified medical timeline...
                     </div>
-                  ) : !timeline?.events || timeline.events.length === 0 ? (
-                    <div className="py-8 text-center text-xs font-mono text-[var(--text-muted)]">
-                      No clinical events recorded under this consent. Click "Document Visit" above to add an encounter.
+                  ) : filteredEvents.length === 0 ? (
+                    <div className="py-12 text-center text-xs text-slate-500">
+                      No records match the selected filter.
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      {timeline.events.map((evt: any, i: number) => (
+                    <div className="space-y-3">
+                      {filteredEvents.map((evt: any, i: number) => (
                         <div
                           key={i}
-                          className="manifesto-border p-4 bg-[var(--bg-card)] hover:shadow-[3px_3px_0_var(--border-main)] transition-all"
+                          className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-all space-y-1.5"
                         >
                           <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
                             <div className="flex items-center gap-2">
-                              <span className={`manifesto-badge ${
-                                evt.event_type === "ENCOUNTER" ? "bg-[#dbeafe] text-[#1e40af]" :
-                                evt.event_type === "PRESCRIPTION" ? "bg-[#fef3c7] text-[#92400e]" :
-                                evt.event_type === "CONDITION" ? "bg-[#fee2e2] text-[#b91c1c]" :
-                                "bg-[#dcfce7] text-[#166534]"
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                                evt.event_type === "ENCOUNTER" ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" :
+                                evt.event_type === "PRESCRIPTION" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" :
+                                evt.event_type === "CONDITION" ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" :
+                                "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
                               }`}>
                                 {evt.event_type}
                               </span>
-                              <span className="font-bold text-sm text-[var(--text-main)]">{evt.title}</span>
+                              <span className="font-bold text-sm text-slate-900 dark:text-white">
+                                {evt.title}
+                              </span>
                               {evt.record_id && (
-                                <span className="font-mono text-[10px] text-[var(--text-subtle)]">
+                                <span className="text-[10px] font-mono text-slate-400">
                                   #{evt.record_id}
                                 </span>
                               )}
                             </div>
-                            <span className="font-mono text-xs text-[var(--text-muted)]">{evt.timestamp}</span>
+                            <span className="text-xs text-slate-400 font-mono">{evt.timestamp}</span>
                           </div>
 
-                          <p className="text-xs text-[var(--text-muted)] mt-2 font-sans">
+                          <p className="text-xs text-slate-600 dark:text-slate-300">
                             {evt.description}
                           </p>
 
                           {evt.snomed_code && (
-                            <div className="mt-2 flex items-center gap-2 font-mono text-[11px]">
-                              <span className="text-[var(--text-subtle)]">SNOMED CT:</span>
-                              <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
+                            <div className="flex items-center gap-1.5 pt-1 text-[11px] font-mono">
+                              <span className="text-slate-400">SNOMED CT:</span>
+                              <span className="px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 font-semibold">
                                 {evt.snomed_code}
                               </span>
                             </div>
@@ -1096,58 +1128,53 @@ export default function Home() {
             {/* View A2: Clinical Encounters & SNOMED CT Authoring */}
             {activePortal === "doctor_encounters" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">02 // CLINICAL ENCOUNTER AUTHORING</span>
-                    <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                      AUTHENTIC SNOMED CT CODING
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Document Clinical Encounter
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Document Clinical Encounter (SNOMED CT)
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                    Coding diagnosis with validated National SNOMED CT concepts &bull; Patient: {selectedPatient?.full_name || "Select Patient"}
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Active Patient: {selectedPatient?.full_name || "Select Patient from Workstation"}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Encounter Form */}
-                  <div className="lg:col-span-2 manifesto-card p-6 space-y-4">
-                    <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
-                      Consultation Details
+                  <div className="lg:col-span-2 medical-card p-6 space-y-4">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Consultation Assessment & Prescriptions
                     </h3>
 
                     <div>
-                      <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                        Chief Complaint / Encounter Reason
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Chief Complaint & Reason for Visit
                       </label>
                       <input
                         type="text"
                         value={encounterReason}
                         onChange={e => setEncounterReason(e.target.value)}
-                        placeholder="e.g. Routine diabetic checkup, persistent cough, high blood pressure follow-up"
-                        className="w-full manifesto-border p-2.5 bg-[var(--bg-card)] text-sm font-sans text-[var(--text-main)] outline-none focus:border-[var(--color-brand)]"
+                        placeholder="e.g. Follow-up for glycemic evaluation, persistent evening fatigue"
+                        className="w-full p-2.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                       />
                     </div>
 
                     <div>
-                      <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                         Clinical Progress Notes
                       </label>
                       <textarea
                         rows={4}
                         value={encounterNotes}
                         onChange={e => setEncounterNotes(e.target.value)}
-                        placeholder="Subjective history, objective vitals, assessment notes..."
-                        className="w-full manifesto-border p-2.5 bg-[var(--bg-card)] text-sm font-sans text-[var(--text-main)] outline-none focus:border-[var(--color-brand)]"
+                        placeholder="Subjective symptoms, physical examination findings, treatment plan..."
+                        className="w-full p-2.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                       />
                     </div>
 
                     {/* Prescription Section */}
-                    <div className="border-t border-[var(--border-main)] pt-4">
-                      <h4 className="font-mono text-xs font-bold uppercase text-[var(--color-brand)] mb-2">
-                        Prescription (Optional Medication Request)
+                    <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                      <h4 className="text-xs font-bold uppercase text-indigo-600 dark:text-indigo-400 flex items-center gap-1.5">
+                        <Pill className="w-3.5 h-3.5" />
+                        Medication Prescription Order
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <input
@@ -1155,53 +1182,53 @@ export default function Home() {
                           value={rxMedName}
                           onChange={e => setRxMedName(e.target.value)}
                           placeholder="Drug Name (e.g. Metformin 500mg)"
-                          className="manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)] outline-none"
+                          className="p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs outline-none"
                         />
                         <input
                           type="text"
                           value={rxDosage}
                           onChange={e => setRxDosage(e.target.value)}
                           placeholder="Dosage (e.g. 500 mg)"
-                          className="manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)] outline-none"
+                          className="p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs outline-none"
                         />
                         <input
                           type="text"
                           value={rxFrequency}
                           onChange={e => setRxFrequency(e.target.value)}
-                          placeholder="Frequency (e.g. Twice daily)"
-                          className="manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)] outline-none"
+                          placeholder="Frequency (e.g. Twice daily after meals)"
+                          className="p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs outline-none"
                         />
                         <input
                           type="text"
                           value={rxDuration}
                           onChange={e => setRxDuration(e.target.value)}
                           placeholder="Duration (e.g. 30 days)"
-                          className="manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)] outline-none"
+                          className="p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs outline-none"
                         />
                       </div>
                     </div>
 
                     <button
                       onClick={handleCreateEncounter}
-                      className="manifesto-btn-primary w-full py-2.5 text-xs font-mono font-bold uppercase mt-4"
+                      className="btn-primary w-full py-2.5 text-xs uppercase tracking-wide font-semibold mt-2"
                     >
                       Sign & Commit Clinical Encounter
                     </button>
                   </div>
 
-                  {/* SNOMED CT Concept Search Sidebar */}
-                  <div className="manifesto-card p-6 space-y-4">
+                  {/* SNOMED CT Registry Search */}
+                  <div className="medical-card p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
-                        SNOMED CT Registry
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        SNOMED CT Coding
                       </h3>
-                      <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-bold border border-indigo-200 dark:border-indigo-800">
                         NRCES India
                       </span>
                     </div>
 
                     <div>
-                      <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                         Search Concept
                       </label>
                       <div className="relative">
@@ -1209,36 +1236,36 @@ export default function Home() {
                           type="text"
                           value={snomedSearchQuery}
                           onChange={e => searchSnomed(e.target.value)}
-                          placeholder="Type 'diabetes', 'hypertension'..."
-                          className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)] outline-none pr-8"
+                          placeholder="Search 'diabetes', 'hypertension'..."
+                          className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white outline-none pr-8"
                         />
-                        <Search className="w-3.5 h-3.5 absolute right-2.5 top-3 text-[var(--text-muted)]" />
+                        <Search className="w-3.5 h-3.5 absolute right-2.5 top-2.5 text-slate-400" />
                       </div>
                     </div>
 
                     {/* Selected Concept Card */}
                     {selectedSnomed ? (
-                      <div className="manifesto-border p-3 bg-[#f0fdf4] border-emerald-600">
-                        <div className="text-[10px] font-mono font-bold uppercase text-emerald-700">Selected Diagnosis Code:</div>
-                        <div className="font-bold text-xs text-[var(--text-main)] mt-0.5">{selectedSnomed.display_name}</div>
-                        <div className="font-mono text-xs text-emerald-800 font-bold mt-1">Concept ID: {selectedSnomed.concept_id}</div>
+                      <div className="p-3 rounded-md bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 space-y-1">
+                        <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400">Selected Diagnosis:</div>
+                        <div className="font-bold text-xs text-emerald-900 dark:text-emerald-200">{selectedSnomed.display_name}</div>
+                        <div className="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">ID: {selectedSnomed.concept_id}</div>
                       </div>
                     ) : (
-                      <div className="p-3 text-center text-xs font-mono text-[var(--text-muted)] manifesto-border bg-[var(--bg-sidebar)]">
-                        No concept selected yet. Search above.
+                      <div className="p-3 text-center text-xs text-slate-400 rounded-md border border-dashed border-slate-200 dark:border-slate-800">
+                        No concept selected. Type above to search SNOMED concepts.
                       </div>
                     )}
 
                     {/* Search Results */}
-                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
                       {snomedResults.map((item, idx) => (
                         <div
                           key={idx}
                           onClick={() => setSelectedSnomed(item)}
-                          className="manifesto-border p-2.5 text-xs cursor-pointer hover:bg-[var(--bg-card-hover)] transition-all"
+                          className="p-2.5 rounded-md border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-indigo-500 cursor-pointer transition-all"
                         >
-                          <div className="font-bold text-[var(--text-main)]">{item.display_name}</div>
-                          <div className="font-mono text-[10px] text-[var(--color-brand)]">ID: {item.concept_id}</div>
+                          <div className="font-bold text-xs text-slate-900 dark:text-white">{item.display_name}</div>
+                          <div className="text-[10px] font-mono text-indigo-600 dark:text-indigo-400">Concept ID: {item.concept_id}</div>
                         </div>
                       ))}
                     </div>
@@ -1247,51 +1274,45 @@ export default function Home() {
               </div>
             )}
 
-            {/* View A3: Clinical AI Copilot */}
+            {/* View A3: Clinical AI Copilot with Clickable Questions */}
             {activePortal === "doctor_ai" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">03 // CLINICAL DECISION SUPPORT</span>
-                    <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                      ZERO-HALLUCINATION RECORD CITATIONS
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Grounded Clinical AI Assistant
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Grounded Clinical AI Copilot
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                    Synthesizing longitudinal records strictly with explicit ID citations &bull; Patient: {selectedPatient?.full_name}
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Clinical Decision Support strictly grounded in verified EHR records • Active Patient: {selectedPatient?.full_name}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Synthesis Brief Box */}
-                  <div className="manifesto-card p-6 space-y-4">
+                  <div className="medical-card p-6 space-y-4">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
-                        Clinical Brief Synthesizer
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        Longitudinal Clinical Brief
                       </h3>
                       <button
                         onClick={generateAiSummary}
                         disabled={loadingAiSummary}
-                        className="manifesto-btn-primary px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 uppercase"
+                        className="btn-primary px-3 py-1.5 text-xs flex items-center gap-1.5"
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {loadingAiSummary ? "Processing..." : "Generate Brief"}
+                        <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                        {loadingAiSummary ? "Synthesizing..." : "Generate Brief"}
                       </button>
                     </div>
 
                     {aiSummary ? (
                       <div className="space-y-3">
-                        <div className="p-4 manifesto-border bg-[var(--bg-base)] text-xs text-[var(--text-main)] leading-relaxed whitespace-pre-wrap font-sans">
+                        <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                           {aiSummary.summary}
                         </div>
                         <div>
-                          <span className="text-[10px] font-mono font-bold uppercase text-[var(--text-muted)]">Verified EHR Record Citations:</span>
+                          <span className="text-[10px] font-bold uppercase text-slate-400">Verified Citations:</span>
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             {aiSummary.records_cited?.map((c: string, idx: number) => (
-                              <span key={idx} className="manifesto-badge bg-white text-[#d42b2b] text-[10px]">
+                              <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                                 {c}
                               </span>
                             ))}
@@ -1299,44 +1320,76 @@ export default function Home() {
                         </div>
                       </div>
                     ) : (
-                      <div className="p-8 text-center text-xs font-mono text-[var(--text-muted)] manifesto-border bg-[var(--bg-sidebar)]">
-                        Click "Generate Brief" to synthesize a grounded summary of this patient's condition, vitals, and lab history.
+                      <div className="p-10 text-center text-xs text-slate-400 rounded-lg border border-dashed border-slate-200 dark:border-slate-800">
+                        Click "Generate Brief" to synthesize a complete clinical overview with citations.
                       </div>
                     )}
                   </div>
 
-                  {/* Ask Clinical Questions Box */}
-                  <div className="manifesto-card p-6 space-y-4">
-                    <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
-                      Ask Questions on Patient History
-                    </h3>
+                  {/* Ask Clinical Questions with Interactive Sample Chips */}
+                  <div className="medical-card p-6 space-y-4">
+                    <div>
+                      <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                        Ask Clinical Record Questions
+                      </h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                        Click a sample prompt below or type your custom medical question:
+                      </p>
+                    </div>
 
-                    <form onSubmit={askAiAssistant} className="flex gap-2">
+                    {/* Interactive Clickable Sample Chips */}
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Quick Clinical Prompts:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {sampleAiPrompts.map((prompt, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              setAiQuery(prompt);
+                              askAiAssistant(prompt);
+                            }}
+                            className="text-left px-2.5 py-1.5 rounded-md text-[11px] font-medium bg-slate-100 dark:bg-slate-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200 dark:border-slate-700 transition-colors"
+                          >
+                            💬 {prompt}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Input Field */}
+                    <div className="flex gap-2 pt-2">
                       <input
                         type="text"
                         value={aiQuery}
                         onChange={e => setAiQuery(e.target.value)}
-                        placeholder="e.g. What was the last HbA1c result and date?"
-                        className="flex-1 manifesto-border p-2.5 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)] outline-none"
+                        placeholder="Type medical inquiry on patient history..."
+                        className="flex-1 p-2.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs text-slate-900 dark:text-white outline-none focus:border-indigo-500"
                       />
                       <button
-                        type="submit"
+                        onClick={() => askAiAssistant()}
                         disabled={loadingAiQuery || !aiQuery.trim()}
-                        className="manifesto-btn-primary px-4 py-2 text-xs font-mono font-bold uppercase flex items-center gap-1"
+                        className="btn-primary px-4 py-2 text-xs flex items-center gap-1"
                       >
                         <Send className="w-3.5 h-3.5" />
                         Ask
                       </button>
-                    </form>
+                    </div>
 
+                    {/* Answer Output */}
                     {aiAnswer && (
-                      <div className="manifesto-border p-4 bg-[#fefce8] border-[#b45309] space-y-2">
-                        <div className="font-mono text-xs font-bold text-[#b45309] uppercase">AI Response:</div>
-                        <p className="text-xs text-[var(--text-main)] leading-relaxed font-sans">{aiAnswer.answer}</p>
-                        {aiAnswer.citations && (
-                          <div className="pt-2 border-t border-[#fde68a] flex flex-wrap gap-1">
-                            {aiAnswer.citations.map((cit: string, idx: number) => (
-                              <span key={idx} className="manifesto-badge bg-white text-[#b45309] text-[10px]">
+                      <div className="p-4 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-2">
+                        <div className="text-xs font-bold text-indigo-700 dark:text-indigo-300 uppercase">
+                          EHR Grounded Answer:
+                        </div>
+                        <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                          {aiAnswer.answer}
+                        </p>
+                        {aiAnswer.grounded_record_ids && (
+                          <div className="pt-2 border-t border-indigo-200 dark:border-indigo-800/60 flex flex-wrap gap-1">
+                            {aiAnswer.grounded_record_ids.map((cit: string, idx: number) => (
+                              <span key={idx} className="px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-white dark:bg-slate-800 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700">
                                 {cit}
                               </span>
                             ))}
@@ -1344,6 +1397,46 @@ export default function Home() {
                         )}
                       </div>
                     )}
+                    {/* Verified Sample Clinical Q&A Knowledge Base */}
+                    <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                          Pre-Fed Clinical Q&A Scenarios ({sampleClinicalQnA.length})
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          Click any question to ask live or review grounded rationale
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {sampleClinicalQnA.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => {
+                              setAiQuery(item.q);
+                              askAiAssistant(item.q);
+                            }}
+                            className="p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/60 hover:border-indigo-400 dark:hover:border-indigo-600 cursor-pointer transition-all space-y-2 group"
+                          >
+                            <div className="font-semibold text-xs text-indigo-700 dark:text-indigo-400 group-hover:text-indigo-600 flex items-start justify-between gap-2">
+                              <span>Q: {item.q}</span>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform shrink-0 mt-0.5" />
+                            </div>
+                            <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed">
+                              {item.a}
+                            </p>
+                            <div className="flex flex-wrap gap-1 pt-1 border-t border-slate-200/60 dark:border-slate-800/60">
+                              {item.citations.map((c, cIdx) => (
+                                <span key={cIdx} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
+                                  {c}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1352,51 +1445,45 @@ export default function Home() {
             {/* View A4: ABDM Health Information User (HIU) Transfer */}
             {activePortal === "doctor_abdm_hiu" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">04 // AYUSHMAN BHARAT DIGITAL MISSION</span>
-                    <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">
-                      HIU CONSENT-BASED EXCHANGE
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     ABDM HIU Health Data Transfer
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Fetch encrypted clinical document bundles across participating Indian healthcare facilities via ABDM Gateway
                   </p>
                 </div>
 
-                <div className="manifesto-card p-6 space-y-4">
+                <div className="medical-card p-6 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                        HIU Client ID
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        HIU Client Identifier
                       </label>
                       <input
                         type="text"
                         disabled
                         value="MEDINDIA-HIU-APOLLO-01"
-                        className="w-full manifesto-border p-2 bg-[var(--bg-sidebar)] text-xs font-mono"
+                        className="w-full p-2 rounded-md bg-slate-100 dark:bg-slate-800 text-xs font-mono text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700"
                       />
                     </div>
                     <div>
-                      <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                        Active Consent Artefact ID
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Active Consent Artifact ID
                       </label>
                       <input
                         type="text"
                         value={abdmHiuConsentId}
                         onChange={e => setAbdmHiuConsentId(e.target.value)}
                         placeholder="Consent ID"
-                        className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-mono"
+                        className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
                       />
                     </div>
                     <div className="flex items-end">
                       <button
                         onClick={handleAbdmFetchData}
                         disabled={loadingAbdm}
-                        className="manifesto-btn-primary w-full py-2 text-xs font-mono font-bold uppercase flex items-center justify-center gap-1.5"
+                        className="btn-primary w-full py-2 text-xs uppercase font-semibold flex items-center justify-center gap-1.5"
                       >
                         <Network className="w-4 h-4" />
                         {loadingAbdm ? "Fetching..." : "Fetch Encrypted Bundle"}
@@ -1406,21 +1493,17 @@ export default function Home() {
 
                   {/* Transfer Result Output */}
                   {abdmHiuTransferResult && (
-                    <div className="manifesto-border p-4 bg-[var(--bg-base)] space-y-3 mt-4">
+                    <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 mt-4">
                       <div className="flex items-center justify-between">
-                        <span className="font-mono text-xs font-bold uppercase text-emerald-800">
-                          Transfer Complete &bull; Status: {abdmHiuTransferResult.status}
+                        <span className="text-xs font-bold uppercase text-emerald-600 dark:text-emerald-400">
+                          Transfer Successful • Status: {abdmHiuTransferResult.status}
                         </span>
-                        <span className="manifesto-badge bg-[#dcfce7] text-[#166534]">
+                        <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 font-semibold border border-emerald-300 dark:border-emerald-800">
                           {abdmHiuTransferResult.resources_count} Resources Transferred
                         </span>
                       </div>
 
-                      <div className="text-xs font-mono text-[var(--text-muted)]">
-                        Bundle Type: {abdmHiuTransferResult.fhir_bundle?.resourceType} // ID: {abdmHiuTransferResult.fhir_bundle?.id}
-                      </div>
-
-                      <pre className="p-3 bg-[var(--bg-card)] manifesto-border text-[11px] font-mono max-h-[300px] overflow-y-auto">
+                      <pre className="p-3 rounded-md bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-[11px] font-mono max-h-[300px] overflow-y-auto">
                         {JSON.stringify(abdmHiuTransferResult.fhir_bundle, null, 2)}
                       </pre>
                     </div>
@@ -1429,37 +1512,40 @@ export default function Home() {
               </div>
             )}
 
-            {/* View A5: FHIR R4 Inspector */}
+            {/* View A5: FHIR R4 Inspector (Guaranteed High-Contrast Active State) */}
             {activePortal === "fhir_inspector" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">05 // INTEROPERABILITY SPECIFICATION</span>
-                    <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">
-                      HL7 FHIR R4 &bull; NRCES
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    ABDM FHIR R4 Resource Inspector
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    HL7 FHIR R4 Resource Inspector
                   </h1>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    ABDM & NRCES-Compliant Interoperability Serialization
+                  </p>
                 </div>
 
-                <div className="manifesto-card p-6 space-y-4">
+                <div className="medical-card p-6 space-y-4">
+                  {/* Resource Filter Buttons */}
                   <div className="flex flex-wrap items-center gap-2">
-                    {["Patient", "Bundle", "Condition", "Observation", "Encounter"].map(t => (
-                      <button
-                        key={t}
-                        onClick={() => fetchFhir(t)}
-                        className={`manifesto-btn px-3 py-1.5 text-xs font-mono font-bold uppercase ${
-                          selectedFhirType === t ? "bg-[var(--color-brand)] text-white" : ""
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    ))}
+                    {["Patient", "Bundle", "Condition", "Observation", "Encounter"].map(t => {
+                      const isSel = selectedFhirType === t;
+                      return (
+                        <button
+                          key={t}
+                          onClick={() => fetchFhir(t)}
+                          className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase transition-all ${
+                            isSel
+                              ? "filter-pill-active"
+                              : "filter-pill-inactive"
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  <pre className="p-4 bg-[var(--bg-base)] manifesto-border text-xs font-mono text-[var(--text-main)] max-h-[500px] overflow-y-auto">
+                  <pre className="p-4 rounded-lg bg-slate-900 text-slate-100 text-xs font-mono max-h-[500px] overflow-y-auto border border-slate-800 shadow-inner">
                     {JSON.stringify(fhirResource, null, 2) || "Loading resource..."}
                   </pre>
                 </div>
@@ -1469,132 +1555,126 @@ export default function Home() {
         )}
 
         {/* ─────────────────────────────────────────────────────────────
-            B. PATIENT PORTAL VIEWS (NO DOCTOR OR LAB BARS)
+            B. PATIENT PORTAL
             ───────────────────────────────────────────────────────────── */}
         {currentRole === "PATIENT" && (
           <div>
-            {/* View B1: My Official ABHA Health Card */}
+            {/* View B1: Official Indian ABHA Card */}
             {activePortal === "patient_abha" && (
               <div className="space-y-6">
                 
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">01 // CITIZEN IDENTITY</span>
-                    <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                      NATIONAL HEALTH AUTHORITY
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Ayushman Bharat Health Account (ABHA)
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Ayushman Bharat Digital Health Account (ABHA)
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                    Your unique Indian digital health identifier &bull; Self-sovereign consent & medical history
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    National Health Authority (NHA) Verified Citizen Profile
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  {/* The Physical ABHA Card Render */}
+                  {/* Physical ABHA ID Card Render */}
                   <div className="lg:col-span-2">
-                    <div className="manifesto-border p-6 bg-[var(--bg-card)] shadow-[6px_6px_0_#0a0a0a] relative overflow-hidden">
-                      {/* Tricolor Header Bar */}
-                      <div className="h-2 w-full bg-gradient-to-r from-orange-500 via-white to-green-600 border-b border-[var(--border-main)] -mt-6 -mx-6 mb-6"></div>
+                    <div className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg overflow-hidden relative">
+                      {/* Tricolor Ribbon */}
+                      <div className="h-2 w-full bg-gradient-to-r from-orange-500 via-white to-green-600"></div>
 
-                      <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-[#d42b2b] text-white flex items-center justify-center font-bold text-lg border border-[var(--border-main)]">
-                            ₹
-                          </div>
-                          <div>
-                            <div className="font-editorial text-lg font-bold text-[var(--text-main)]">
-                              National Health Authority (NHA)
-                            </div>
-                            <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">
-                              Government of India &bull; Ayushman Bharat Digital Mission
-                            </div>
-                          </div>
-                        </div>
-                        <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                          VERIFIED CITIZEN
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 my-6">
-                        {/* Profile Photo Placeholder */}
-                        <div className="flex flex-col items-center justify-center p-4 manifesto-border bg-[var(--bg-base)]">
-                          <User className="w-16 h-16 text-[var(--text-muted)]" />
-                          <span className="text-[10px] font-mono mt-2 text-[var(--text-muted)]">PHOTO ID VERIFIED</span>
-                        </div>
-
-                        {/* Citizen Demographics */}
-                        <div className="md:col-span-2 space-y-2">
-                          <div>
-                            <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">Cardholder Name</div>
-                            <div className="font-editorial text-2xl font-bold text-[var(--text-main)]">
-                              Rajesh Sharma
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4 pt-2">
-                            <div>
-                              <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">ABHA Address</div>
-                              <div className="font-mono text-xs font-bold text-[var(--color-brand)]">rajesh.sharma@abdm</div>
+                      <div className="p-6 space-y-6">
+                        {/* Card Header */}
+                        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-tr from-orange-500 to-amber-600 flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                              ₹
                             </div>
                             <div>
-                              <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">Gender & Blood Group</div>
-                              <div className="font-mono text-xs font-bold text-[var(--text-main)]">Male &bull; B Positive (B+)</div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">Year of Birth</div>
-                              <div className="font-mono text-xs font-bold text-[var(--text-main)]">1974 (Age: 52)</div>
-                            </div>
-                            <div>
-                              <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">Mobile (OTP Linked)</div>
-                              <div className="font-mono text-xs font-bold text-[var(--text-main)]">+91 98765-43210</div>
+                              <div className="font-bold text-sm text-slate-900 dark:text-white">
+                                National Health Authority (NHA)
+                              </div>
+                              <div className="text-[10px] text-slate-500 uppercase font-semibold">
+                                Government of India • Ayushman Bharat Digital Mission
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </div>
-
-                      {/* ABHA 14-Digit Number Strip */}
-                      <div className="manifesto-border p-3 bg-[var(--bg-base)] flex flex-col md:flex-row md:items-center justify-between gap-2">
-                        <div>
-                          <div className="text-[10px] font-mono text-[var(--text-muted)] uppercase">14-Digit National ABHA ID Number</div>
-                          <div className="font-mono text-xl font-bold tracking-widest text-[var(--text-main)]">
-                            91-4405-2026-0001
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="manifesto-badge bg-[#dcfce7] text-[#166534]">
-                            HIP ACTIVE
+                          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> VERIFIED CITIZEN
                           </span>
+                        </div>
+
+                        {/* Citizen Profile Details */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
+                          {/* Photo Placeholder */}
+                          <div className="flex flex-col items-center justify-center p-5 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-400">
+                            <User className="w-14 h-14" />
+                            <span className="text-[10px] font-mono mt-1 uppercase font-bold text-slate-500">Photo ID Verified</span>
+                          </div>
+
+                          {/* Demographics */}
+                          <div className="md:col-span-2 space-y-3">
+                            <div>
+                              <div className="text-[10px] text-slate-400 uppercase font-semibold">Citizen Name</div>
+                              <div className="text-xl font-bold text-slate-900 dark:text-white">Rajesh Sharma</div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 text-xs">
+                              <div>
+                                <div className="text-[10px] text-slate-400 uppercase font-semibold">ABHA Address</div>
+                                <div className="font-mono font-bold text-indigo-600 dark:text-indigo-400">rajesh.sharma@abdm</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 uppercase font-semibold">Gender & Blood Group</div>
+                                <div className="font-semibold text-slate-900 dark:text-white">Male • B+ (Positive)</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 uppercase font-semibold">Date of Birth</div>
+                                <div className="font-semibold text-slate-900 dark:text-white">12-May-1974 (Age 52)</div>
+                              </div>
+                              <div>
+                                <div className="text-[10px] text-slate-400 uppercase font-semibold">Mobile (OTP Linked)</div>
+                                <div className="font-mono font-semibold text-slate-900 dark:text-white">+91-98765-43210</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 14-Digit ABHA ID Strip */}
+                        <div className="p-3.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-2">
+                          <div>
+                            <div className="text-[10px] uppercase font-bold text-slate-400">14-Digit National Health Identifier</div>
+                            <div className="text-xl font-mono font-bold tracking-widest text-slate-900 dark:text-white">
+                              91-4405-2026-0001
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-mono text-emerald-600 dark:text-emerald-400 font-bold">● HIP LINKED</span>
+                          </div>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* Quick Summary & Privacy Controls */}
-                  <div className="manifesto-card p-6 space-y-4">
-                    <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
+                  {/* Quick Safety Info & Emergency Contacts */}
+                  <div className="medical-card p-6 space-y-4">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
                       Patient Safety & Emergency
                     </h3>
 
-                    <div className="space-y-3 font-mono text-xs">
-                      <div className="manifesto-border p-2.5 bg-[var(--bg-base)]">
-                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Chronic Diagnoses</div>
-                        <div className="font-bold text-[var(--text-main)] mt-0.5">Type 2 Diabetes Mellitus</div>
-                        <div className="font-bold text-[var(--text-main)]">Essential Hypertension</div>
+                    <div className="space-y-3 text-xs">
+                      <div className="p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Primary Diagnoses</div>
+                        <div className="font-semibold text-slate-900 dark:text-white mt-0.5">Type 2 Diabetes Mellitus</div>
+                        <div className="font-semibold text-slate-900 dark:text-white">Essential Hypertension</div>
                       </div>
 
-                      <div className="manifesto-border p-2.5 bg-[var(--bg-base)]">
-                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Emergency Contact</div>
-                        <div className="font-bold text-[var(--text-main)] mt-0.5">Sunita Sharma (Spouse)</div>
-                        <div className="text-[var(--text-muted)]">+91 98765-43211</div>
+                      <div className="p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Emergency Contact</div>
+                        <div className="font-semibold text-slate-900 dark:text-white mt-0.5">Sunita Sharma (Spouse)</div>
+                        <div className="text-slate-500 font-mono">+91-98765-43211</div>
                       </div>
 
-                      <div className="manifesto-border p-2.5 bg-[var(--bg-base)]">
-                        <div className="text-[10px] text-[var(--text-muted)] uppercase">Active Consent Status</div>
-                        <div className="font-bold text-emerald-700 mt-0.5">
-                          {consents.filter(c => c.status === "ACTIVE").length} Authorized Doctors
+                      <div className="p-2.5 rounded-md bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                        <div className="text-[10px] text-slate-400 uppercase font-semibold">Active Doctor Consents</div>
+                        <div className="font-semibold text-emerald-600 dark:text-emerald-400 mt-0.5">
+                          {consents.filter(c => c.status === "ACTIVE").length || 1} Authorized Physicians
                         </div>
                       </div>
                     </div>
@@ -1604,65 +1684,66 @@ export default function Home() {
               </div>
             )}
 
-            {/* View B2: My Health Records Timeline */}
+            {/* View B2: Health Records Timeline & Reports */}
             {activePortal === "patient_records" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">02 // PERSONAL HEALTH RECORDS</span>
-                    <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">
-                      LONGITUDINAL EHR
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     My Medical Records & Lab History
                   </h1>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Complete longitudinal view across outpatient consultations, prescriptions, and laboratory reports
+                  </p>
                 </div>
 
-                {/* Explaining Lab Report Modal if active */}
+                {/* Plain-Language Explainer Box */}
                 {explainingReport && (
-                  <div className="manifesto-card p-5 bg-[#fefce8] border-[#b45309] shadow-[3px_3px_0_#b45309]">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-mono text-xs font-bold uppercase text-[#b45309]">
-                        Plain-Language Lab Explanation for Patients
+                  <div className="medical-card p-5 bg-teal-50/60 dark:bg-teal-950/20 border-teal-300 dark:border-teal-800 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold uppercase text-teal-800 dark:text-teal-300 flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-teal-600" />
+                        Plain-Language Lab Result Explanation
                       </span>
                       <button
                         onClick={() => setExplainingReport(null)}
-                        className="text-xs font-mono text-[#b45309] hover:underline"
+                        className="text-xs text-teal-700 hover:underline"
                       >
                         Dismiss
                       </button>
                     </div>
-                    <p className="text-xs text-[var(--text-main)] leading-relaxed whitespace-pre-wrap font-sans">
+                    <p className="text-xs text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
                       {explainingReport.explanation}
                     </p>
                   </div>
                 )}
 
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {timeline?.events?.map((evt: any, i: number) => (
-                    <div
-                      key={i}
-                      className="manifesto-card p-5 space-y-2"
-                    >
+                    <div key={i} className="medical-card p-5 space-y-2">
                       <div className="flex flex-col md:flex-row md:items-center justify-between gap-1">
                         <div className="flex items-center gap-2">
-                          <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold uppercase ${
+                            evt.event_type === "ENCOUNTER" ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" :
+                            evt.event_type === "PRESCRIPTION" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" :
+                            "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                          }`}>
                             {evt.event_type}
                           </span>
-                          <span className="font-bold text-sm text-[var(--text-main)]">{evt.title}</span>
+                          <span className="font-bold text-sm text-slate-900 dark:text-white">
+                            {evt.title}
+                          </span>
                         </div>
-                        <span className="font-mono text-xs text-[var(--text-muted)]">{evt.timestamp}</span>
+                        <span className="text-xs text-slate-400 font-mono">{evt.timestamp}</span>
                       </div>
 
-                      <p className="text-xs text-[var(--text-muted)] font-sans">{evt.description}</p>
+                      <p className="text-xs text-slate-600 dark:text-slate-300">{evt.description}</p>
 
                       {evt.event_type === "DIAGNOSTIC_REPORT" && (
                         <div className="pt-2">
                           <button
                             onClick={() => handleExplainReport(evt.record_id)}
                             disabled={loadingLabExplainer}
-                            className="manifesto-btn px-3 py-1 text-[11px] font-mono font-bold text-[#b45309] flex items-center gap-1.5"
+                            className="px-3 py-1.5 rounded-md text-xs font-semibold bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-300 border border-teal-200 dark:border-teal-800 flex items-center gap-1.5 hover:bg-teal-100 transition-colors"
                           >
                             <Sparkles className="w-3.5 h-3.5" />
                             {loadingLabExplainer ? "Analyzing..." : "Explain This Report in Plain English"}
@@ -1675,40 +1756,34 @@ export default function Home() {
               </div>
             )}
 
-            {/* View B3: Consent Manager (Grant & Revoke) */}
+            {/* View B3: Consent Manager */}
             {activePortal === "patient_consent" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">03 // SELF-SOVEREIGN PRIVACY</span>
-                    <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                      ABDM CONSENT DIRECTIVE
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Consent & Data Access Manager
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Consent & Privacy Manager
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                    Grant, scope, or immediately revoke access permissions for attending physicians and hospitals
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Self-sovereign control over which healthcare providers can access your medical records
                   </p>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Grant New Consent Drawer */}
-                  <div className="manifesto-card p-6 space-y-4">
-                    <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
+                  <div className="medical-card p-6 space-y-4">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
                       Grant New Consent
                     </h3>
 
                     <form onSubmit={handleGrantConsent} className="space-y-3">
                       <div>
-                        <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                           Select Practitioner
                         </label>
                         <select
                           value={grantDoctorId}
                           onChange={e => setGrantDoctorId(e.target.value)}
-                          className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans"
+                          className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
                         >
                           {doctorsList.map(doc => (
                             <option key={doc.practitioner_id} value={doc.practitioner_id}>
@@ -1719,15 +1794,15 @@ export default function Home() {
                       </div>
 
                       <div>
-                        <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                          Health Record Scope
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Record Categories
                         </label>
                         <select
                           value={grantCategory}
                           onChange={e => setGrantCategory(e.target.value)}
-                          className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans"
+                          className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
                         >
-                          <option value="ALL_RECORDS">All Clinical Records</option>
+                          <option value="ALL_RECORDS">All Medical Records</option>
                           <option value="DIAGNOSTIC_REPORT">Lab & Diagnostics Only</option>
                           <option value="PRESCRIPTION">Prescriptions Only</option>
                           <option value="CONDITION">Diagnosed Conditions Only</option>
@@ -1736,38 +1811,42 @@ export default function Home() {
 
                       <button
                         type="submit"
-                        className="manifesto-btn-primary w-full py-2 text-xs font-mono font-bold uppercase mt-2"
+                        className="btn-primary w-full py-2 text-xs uppercase font-semibold mt-2"
                       >
-                        Authorize Consent Artifact
+                        Authorize Consent
                       </button>
                     </form>
                   </div>
 
                   {/* Active Consents List */}
-                  <div className="lg:col-span-2 manifesto-card p-6 space-y-4">
-                    <h3 className="font-editorial text-lg font-bold text-[var(--text-main)]">
-                      Active Access Consents ({consents.length})
+                  <div className="lg:col-span-2 medical-card p-6 space-y-4">
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Active Authorizations ({consents.length})
                     </h3>
 
                     <div className="space-y-3">
                       {consents.map(c => (
                         <div
                           key={c.consent_id}
-                          className="manifesto-border p-4 bg-[var(--bg-card)] flex flex-col md:flex-row md:items-center justify-between gap-3"
+                          className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-3"
                         >
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="font-bold text-sm text-[var(--text-main)]">
+                              <span className="font-bold text-sm text-slate-900 dark:text-white">
                                 {c.doctor_name}
                               </span>
-                              <span className={`manifesto-badge ${c.status === "ACTIVE" ? "bg-[#dcfce7] text-[#166534]" : "bg-[#fee2e2] text-[#d42b2b]"}`}>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                c.status === "ACTIVE"
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                                  : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                              }`}>
                                 {c.status}
                               </span>
                             </div>
-                            <div className="text-xs text-[var(--text-muted)] font-mono mt-1">
-                              Purpose: {c.purpose} &bull; Categories: {c.categories?.join(", ")}
+                            <div className="text-xs text-slate-500 mt-1">
+                              Purpose: {c.purpose} • Categories: {c.categories?.join(", ")}
                             </div>
-                            <div className="text-[11px] text-[var(--text-subtle)] font-mono">
+                            <div className="text-[11px] text-slate-400 font-mono">
                               Valid until: {c.valid_to}
                             </div>
                           </div>
@@ -1775,7 +1854,7 @@ export default function Home() {
                           {c.status === "ACTIVE" && (
                             <button
                               onClick={() => handleRevokeConsent(c.consent_id)}
-                              className="manifesto-btn px-3 py-1.5 text-xs font-mono font-bold uppercase text-[#d42b2b] hover:bg-[#fee2e2]"
+                              className="px-3 py-1.5 rounded-md text-xs font-semibold text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 border border-red-200 dark:border-red-800 transition-colors"
                             >
                               Revoke Immediately
                             </button>
@@ -1788,75 +1867,60 @@ export default function Home() {
               </div>
             )}
 
-            {/* View B4: Transparency & Audit Trail */}
+            {/* View B4: Transparency Audit Log */}
             {activePortal === "patient_audit" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">04 // PRIVACY AUDIT TRAIL</span>
-                    <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                      IMMUTABLE LOG
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Transparent Data Access Audit Log
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Immutable Access Audit Trail
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                    Real-time verification of who accessed your records, which consent artifact was verified, and the purpose
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Transparent log detailing every physician and laboratory request to your records
                   </p>
                 </div>
 
-                <div className="manifesto-card p-6 space-y-4">
-                  <div className="space-y-2">
-                    {auditLogs.map((log: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="manifesto-border p-3 bg-[var(--bg-card)] flex flex-col md:flex-row md:items-center justify-between text-xs font-mono gap-2"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">{log.actor_role}</span>
-                          <span className="font-bold text-[var(--text-main)]">{log.action}</span>
-                          {log.resource_type && (
-                            <span className="text-[var(--text-muted)]">[{log.resource_type}]</span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-4 text-[var(--text-subtle)]">
-                          <span>Purpose: {log.purpose || "CONSULTATION"}</span>
-                          <span>{log.timestamp}</span>
-                        </div>
+                <div className="medical-card p-6 space-y-3">
+                  {auditLogs.map((log: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between text-xs gap-2"
+                    >
+                      <div className="flex items-center gap-2 font-mono">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                          {log.actor_role}
+                        </span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{log.action}</span>
                       </div>
-                    ))}
-                  </div>
+                      <div className="flex items-center gap-3 text-slate-400 text-[11px] font-mono">
+                        <span>Purpose: {log.purpose || "CONSULTATION"}</span>
+                        <span>{log.timestamp}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* View B5: Reminders & Alerts */}
+            {/* View B5: Reminders */}
             {activePortal === "patient_reminders" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">05 // CARE REMINDERS</span>
-                    <span className="manifesto-badge bg-[#fef3c7] text-[#92400e]">
-                      MEDICATION SCHEDULE
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Care Reminders & Upcoming Actions
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Medication Reminders & Action Schedule
                   </h1>
                 </div>
 
-                <div className="manifesto-card p-6 space-y-3">
+                <div className="medical-card p-6 space-y-3">
                   {notifications.map((n: any, idx: number) => (
                     <div
                       key={idx}
-                      className="manifesto-border p-4 bg-[var(--bg-card)] flex items-center justify-between"
+                      className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex items-center justify-between"
                     >
                       <div>
-                        <div className="font-bold text-sm text-[var(--text-main)]">{n.title}</div>
-                        <div className="text-xs text-[var(--text-muted)] mt-0.5">{n.message}</div>
+                        <div className="font-bold text-sm text-slate-900 dark:text-white">{n.title}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">{n.message}</div>
                       </div>
-                      <span className="font-mono text-xs text-[var(--text-subtle)]">{n.timestamp}</span>
+                      <span className="text-xs text-slate-400 font-mono">{n.timestamp}</span>
                     </div>
                   ))}
                 </div>
@@ -1866,38 +1930,32 @@ export default function Home() {
         )}
 
         {/* ─────────────────────────────────────────────────────────────
-            C. LAB OPERATIONS PORTAL VIEWS (NO DOCTOR OR PATIENT BARS)
+            C. LAB OPERATIONS PORTAL
             ───────────────────────────────────────────────────────────── */}
         {currentRole === "LAB" && (
           <div>
             {/* View C1: Requisition Queue */}
             {activePortal === "lab_queue" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">01 // LABORATORY QUEUE</span>
-                    <span className="manifesto-badge bg-[#ccfbf1] text-[#0f766e]">
-                      NABL ACCREDITED: NABL-DL-2026-891
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
-                    Diagnostic Requisition & Testing Queue
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    Diagnostic Testing Queue & Specimen Intake
                   </h1>
-                  <p className="text-xs text-[var(--text-muted)] font-mono mt-0.5">
-                    Dr. Lal PathLabs National Reference Lab &bull; New Delhi Central Hub
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Dr. Lal PathLabs National Reference Lab • NABL License: NABL-DL-2026-891
                   </p>
                 </div>
 
-                {/* Lab Result Entry Form (if order selected) */}
+                {/* Result Entry Drawer */}
                 {selectedLabOrder && (
-                  <div className="manifesto-card p-6 bg-[#f0fdf4] border-emerald-600 shadow-[4px_4px_0_#15803d] space-y-4">
-                    <div className="flex items-center justify-between border-b border-emerald-300 pb-2">
-                      <h3 className="font-editorial text-lg font-bold text-emerald-950">
+                  <div className="medical-card p-6 bg-teal-50/50 dark:bg-teal-950/20 border-teal-300 dark:border-teal-800 space-y-4">
+                    <div className="flex items-center justify-between border-b border-teal-200 dark:border-teal-800 pb-2">
+                      <h3 className="text-base font-bold text-teal-950 dark:text-teal-200">
                         Record Test Result: {selectedLabOrder.test_name}
                       </h3>
                       <button
                         onClick={() => setSelectedLabOrder(null)}
-                        className="text-xs font-mono text-emerald-800 hover:underline"
+                        className="text-xs text-teal-700 hover:underline"
                       >
                         Cancel
                       </button>
@@ -1905,28 +1963,28 @@ export default function Home() {
 
                     <form onSubmit={handleSubmitLabResults} className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
-                        <label className="block font-mono text-xs font-bold uppercase text-emerald-900 mb-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                           Quantitative Value
                         </label>
                         <input
                           type="text"
                           value={labObsValue}
                           onChange={e => setLabObsValue(e.target.value)}
-                          placeholder="e.g. 142 or 78,000"
-                          className="w-full manifesto-border p-2 bg-white text-xs font-mono"
+                          placeholder="e.g. 142 or 85,000"
+                          className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
                         />
                       </div>
 
                       <div>
-                        <label className="block font-mono text-xs font-bold uppercase text-emerald-900 mb-1">
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                           Reference Range
                         </label>
                         <input
                           type="text"
                           value={labObsRange}
                           onChange={e => setLabObsRange(e.target.value)}
-                          placeholder="e.g. 70-110 mg/dL"
-                          className="w-full manifesto-border p-2 bg-white text-xs font-mono"
+                          placeholder="e.g. 70-99 mg/dL"
+                          className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
                         />
                       </div>
 
@@ -1936,30 +1994,30 @@ export default function Home() {
                           id="abnormalCheck"
                           checked={labObsAbnormal}
                           onChange={e => setLabObsAbnormal(e.target.checked)}
-                          className="w-4 h-4 accent-[#d42b2b]"
+                          className="w-4 h-4 accent-red-600"
                         />
-                        <label htmlFor="abnormalCheck" className="font-mono text-xs font-bold text-[#d42b2b] uppercase">
-                          Flag Abnormal / Critical Panic Value
+                        <label htmlFor="abnormalCheck" className="text-xs font-bold text-red-600 uppercase">
+                          Flag Abnormal / Critical Value
                         </label>
                       </div>
 
                       <div className="md:col-span-3">
-                        <label className="block font-mono text-xs font-bold uppercase text-emerald-900 mb-1">
-                          Diagnostic Conclusion & Clinical Correlation
+                        <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                          Diagnostic Interpretation
                         </label>
                         <input
                           type="text"
                           value={labConclusion}
                           onChange={e => setLabConclusion(e.target.value)}
-                          placeholder="Conclusion notes signed by pathologist..."
-                          className="w-full manifesto-border p-2 bg-white text-xs font-sans"
+                          placeholder="Pathologist verification notes..."
+                          className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
                         />
                       </div>
 
                       <div className="md:col-span-3">
                         <button
                           type="submit"
-                          className="manifesto-btn-primary w-full py-2.5 text-xs font-mono font-bold uppercase"
+                          className="btn-teal w-full py-2.5 text-xs uppercase font-semibold"
                         >
                           Sign, Verify & Publish to ABDM Care Context
                         </button>
@@ -1969,76 +2027,72 @@ export default function Home() {
                 )}
 
                 {/* Orders List */}
-                <div className="manifesto-card p-6 space-y-4">
-                  <div className="space-y-3">
-                    {labOrders.map(order => (
-                      <div
-                        key={order.order_id}
-                        className="manifesto-border p-4 bg-[var(--bg-card)] flex flex-col md:flex-row md:items-center justify-between gap-3"
-                      >
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-[var(--text-main)]">{order.test_name}</span>
-                            <span className={`manifesto-badge ${order.priority === "URGENT" ? "bg-[#fee2e2] text-[#d42b2b]" : "bg-[#f5f0e8] text-[#0a0a0a]"}`}>
-                              {order.priority || "ROUTINE"}
-                            </span>
-                            <span className="manifesto-badge bg-[#dbeafe] text-[#1e40af]">
-                              {order.status}
-                            </span>
-                          </div>
-                          <div className="text-xs text-[var(--text-muted)] font-mono mt-1">
-                            Patient ABHA: {order.patient_id} &bull; Ordered by Doctor: {order.doctor_id}
-                          </div>
+                <div className="medical-card p-6 space-y-3">
+                  {labOrders.map(order => (
+                    <div
+                      key={order.order_id}
+                      className="p-4 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-3"
+                    >
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-sm text-slate-900 dark:text-white">{order.test_name}</span>
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            order.priority === "URGENT"
+                              ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                              : "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300"
+                          }`}>
+                            {order.priority || "ROUTINE"}
+                          </span>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                            {order.status}
+                          </span>
                         </div>
-
-                        {order.status !== "COMPLETED" && (
-                          <button
-                            onClick={() => setSelectedLabOrder(order)}
-                            className="manifesto-btn-primary px-3 py-1.5 text-xs font-mono font-bold uppercase"
-                          >
-                            Enter Results
-                          </button>
-                        )}
+                        <div className="text-xs text-slate-500 font-mono mt-1">
+                          Patient ABHA: {order.patient_id} • Doctor: {order.doctor_id}
+                        </div>
                       </div>
-                    ))}
-                  </div>
+
+                      {order.status !== "COMPLETED" && (
+                        <button
+                          onClick={() => setSelectedLabOrder(order)}
+                          className="btn-teal px-3 py-1.5 text-xs uppercase font-semibold"
+                        >
+                          Enter Results
+                        </button>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
-            {/* View C2: ABDM HIP Care Context Discovery */}
+            {/* View C2: ABDM HIP Discovery */}
             {activePortal === "lab_abdm_hip" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">02 // HEALTH INFORMATION PROVIDER (HIP)</span>
-                    <span className="manifesto-badge bg-[#fee2e2] text-[#d42b2b]">
-                      ABDM MILESTONE 2
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     ABDM Care Context Discovery & Linking
                   </h1>
                 </div>
 
-                <div className="manifesto-card p-6 space-y-4">
+                <div className="medical-card p-6 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                        Patient ABHA Address
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Patient ABHA Identifier
                       </label>
                       <input
                         type="text"
                         value={abdmAbhaInput}
                         onChange={e => setAbdmAbhaInput(e.target.value)}
-                        className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-mono"
+                        className="w-full p-2 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono"
                       />
                     </div>
                     <div className="flex items-end">
                       <button
                         onClick={handleAbdmDiscover}
                         disabled={loadingAbdm}
-                        className="manifesto-btn-primary w-full py-2 text-xs font-mono font-bold uppercase"
+                        className="btn-primary w-full py-2 text-xs uppercase font-semibold"
                       >
                         {loadingAbdm ? "Discovering..." : "Discover Care Contexts"}
                       </button>
@@ -2046,38 +2100,38 @@ export default function Home() {
                   </div>
 
                   {abdmDiscovered && (
-                    <div className="manifesto-border p-4 bg-[var(--bg-base)] space-y-3 mt-4">
-                      <div className="font-mono text-xs font-bold uppercase text-[var(--color-brand)]">
-                        Discovered {abdmDiscovered.care_contexts?.length} Care Contexts at this HIP:
+                    <div className="p-4 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-3 mt-4">
+                      <div className="text-xs font-bold uppercase text-indigo-600 dark:text-indigo-400">
+                        Discovered {abdmDiscovered.care_contexts?.length} Care Contexts:
                       </div>
 
                       <div className="space-y-2">
                         {abdmDiscovered.care_contexts?.map((cc: any, idx: number) => (
-                          <div key={idx} className="manifesto-border p-2 bg-white text-xs font-mono flex justify-between">
-                            <span className="font-bold">{cc.display}</span>
-                            <span className="text-[var(--text-muted)]">Ref: {cc.reference_number}</span>
+                          <div key={idx} className="p-2.5 rounded bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs flex justify-between">
+                            <span className="font-semibold text-slate-900 dark:text-white">{cc.display}</span>
+                            <span className="text-slate-500 font-mono">{cc.referenceNumber}</span>
                           </div>
                         ))}
                       </div>
 
-                      {/* OTP Confirmation Simulator */}
-                      <div className="pt-3 border-t border-[var(--border-main)] flex items-center gap-3">
+                      {/* OTP Confirm */}
+                      <div className="pt-3 border-t border-slate-200 dark:border-slate-800 flex items-center gap-3">
                         <input
                           type="text"
                           value={abdmOtpInput}
                           onChange={e => setAbdmOtpInput(e.target.value)}
-                          placeholder="OTP"
-                          className="manifesto-border p-1.5 text-xs font-mono w-24 bg-white"
+                          placeholder="OTP (123456)"
+                          className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-mono w-28 bg-white dark:bg-slate-900"
                         />
                         <button
                           onClick={handleAbdmConfirmLink}
                           disabled={loadingAbdm}
-                          className="manifesto-btn px-3 py-1.5 text-xs font-mono font-bold uppercase"
+                          className="btn-primary px-3 py-1.5 text-xs uppercase font-semibold"
                         >
                           Verify OTP & Link
                         </button>
                         {abdmLinkStatus && (
-                          <span className="text-xs font-mono font-bold text-emerald-700">{abdmLinkStatus}</span>
+                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{abdmLinkStatus}</span>
                         )}
                       </div>
                     </div>
@@ -2089,35 +2143,29 @@ export default function Home() {
             {/* View C3: NABL Accreditation */}
             {activePortal === "lab_nabl" && (
               <div className="space-y-6">
-                <div className="border-b border-[var(--border-main)] pb-4">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold text-[var(--color-brand)]">03 // ACCREDITATION & QUALITY</span>
-                    <span className="manifesto-badge bg-[#ccfbf1] text-[#0f766e]">
-                      ISO 15189:2022
-                    </span>
-                  </div>
-                  <h1 className="font-editorial text-3xl font-bold text-[var(--text-main)] mt-1">
+                <div className="pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
                     NABL Laboratory Standards Profile
                   </h1>
                 </div>
 
-                <div className="manifesto-card p-6 space-y-4 font-mono text-xs">
+                <div className="medical-card p-6 space-y-4 text-xs">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="manifesto-border p-3 bg-[var(--bg-base)]">
-                      <div className="text-[10px] text-[var(--text-muted)] uppercase">License Number</div>
-                      <div className="font-bold text-sm text-[var(--text-main)] mt-0.5">NABL-DL-2026-891</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">NABL Accreditation Number</div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">NABL-DL-2026-891</div>
                     </div>
-                    <div className="manifesto-border p-3 bg-[var(--bg-base)]">
-                      <div className="text-[10px] text-[var(--text-muted)] uppercase">Facility Name</div>
-                      <div className="font-bold text-sm text-[var(--text-main)] mt-0.5">Dr. Lal PathLabs National Reference Lab</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Standard Compliance</div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">ISO 15189:2022 Medical Testing</div>
                     </div>
-                    <div className="manifesto-border p-3 bg-[var(--bg-base)]">
-                      <div className="text-[10px] text-[var(--text-muted)] uppercase">Scope of Accreditation</div>
-                      <div className="font-bold text-sm text-[var(--text-main)] mt-0.5">Clinical Biochemistry, Hematology, Molecular Diagnostics</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">Facility Name</div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">Dr. Lal PathLabs National Reference Lab</div>
                     </div>
-                    <div className="manifesto-border p-3 bg-[var(--bg-base)]">
-                      <div className="text-[10px] text-[var(--text-muted)] uppercase">ABDM HIP Endpoint</div>
-                      <div className="font-bold text-sm text-[var(--text-main)] mt-0.5">hip.medindia.health/abdm/v1</div>
+                    <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                      <div className="text-[10px] text-slate-400 uppercase font-bold">ABDM HIP Service Endpoint</div>
+                      <div className="font-bold text-sm text-slate-900 dark:text-white mt-0.5">hip.medindia.health/v1</div>
                     </div>
                   </div>
                 </div>
@@ -2128,101 +2176,92 @@ export default function Home() {
 
       </main>
 
-      {/* ── PERSONA SWITCHER & LOGIN MODAL ── */}
+      {/* ── REVAMPED PERSONA SWITCHER MODAL ── */}
       {showPersonaModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="manifesto-card w-full max-w-xl bg-[var(--bg-card)] p-6 shadow-[8px_8px_0_#0a0a0a] space-y-5">
+          <div className="medical-card w-full max-w-xl p-6 space-y-5 shadow-2xl">
             
-            <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-3">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
-                <div className="font-mono text-xs font-bold uppercase text-[var(--color-brand)]">
-                  USER SWITCHER & AUTHENTICATION
-                </div>
-                <h2 className="font-editorial text-2xl font-bold text-[var(--text-main)]">
-                  Switch Active Portal Persona
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Switch User Persona
                 </h2>
+                <p className="text-xs text-slate-500">
+                  Select a pre-seeded account to experience that role's dedicated portal:
+                </p>
               </div>
-              <button
-                onClick={() => setShowPersonaModal(false)}
-                className="manifesto-btn p-1.5"
-              >
-                <X className="w-4 h-4" />
+              <button onClick={() => setShowPersonaModal(false)} className="p-1 rounded-md text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Quick 1-Click Persona Cards */}
-            <div>
-              <span className="font-mono text-xs font-bold uppercase text-[var(--text-muted)]">
-                1-Click Preset Roles (Dedicated Application Experience)
-              </span>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
-                {/* Doctor Persona */}
-                <div
-                  onClick={() => switchPersona("DOCTOR")}
-                  className={`manifesto-border p-3 cursor-pointer transition-all ${
-                    currentRole === "DOCTOR"
-                      ? "bg-[#fee2e2] border-[var(--color-brand)] shadow-[3px_3px_0_var(--color-brand)]"
-                      : "bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)]"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 text-[var(--color-brand)] font-bold text-xs font-mono">
-                    <Stethoscope className="w-4 h-4" /> DOCTOR
-                  </div>
-                  <div className="font-bold text-xs text-[var(--text-main)] mt-1">Dr. Arvind Swaminathan</div>
-                  <div className="text-[10px] text-[var(--text-muted)] font-mono">NMC: MCI-74892</div>
+            {/* Quick 1-Click Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {/* Doctor Card */}
+              <div
+                onClick={() => switchPersona("DOCTOR")}
+                className={`p-3.5 rounded-lg border cursor-pointer transition-all ${
+                  currentRole === "DOCTOR"
+                    ? "border-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 ring-1 ring-indigo-500"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold text-xs">
+                  <Stethoscope className="w-4 h-4" /> DOCTOR
                 </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white mt-1">Dr. Arvind Swaminathan</div>
+                <div className="text-[10px] text-slate-500">Apollo Hospitals • MD</div>
+              </div>
 
-                {/* Patient Persona */}
-                <div
-                  onClick={() => switchPersona("PATIENT")}
-                  className={`manifesto-border p-3 cursor-pointer transition-all ${
-                    currentRole === "PATIENT"
-                      ? "bg-[#fee2e2] border-[var(--color-brand)] shadow-[3px_3px_0_var(--color-brand)]"
-                      : "bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)]"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 text-[var(--color-brand)] font-bold text-xs font-mono">
-                    <User className="w-4 h-4" /> PATIENT
-                  </div>
-                  <div className="font-bold text-xs text-[var(--text-main)] mt-1">Rajesh Sharma</div>
-                  <div className="text-[10px] text-[var(--text-muted)] font-mono">ABHA: 91-4405-2026-0001</div>
+              {/* Patient Card */}
+              <div
+                onClick={() => switchPersona("PATIENT")}
+                className={`p-3.5 rounded-lg border cursor-pointer transition-all ${
+                  currentRole === "PATIENT"
+                    ? "border-teal-600 bg-teal-50 dark:bg-teal-950/40 ring-1 ring-teal-500"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-teal-600 dark:text-teal-400 font-bold text-xs">
+                  <User className="w-4 h-4" /> PATIENT
                 </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white mt-1">Rajesh Sharma</div>
+                <div className="text-[10px] text-slate-500">ABHA: 91-4405-2026-0001</div>
+              </div>
 
-                {/* Lab Persona */}
-                <div
-                  onClick={() => switchPersona("LAB")}
-                  className={`manifesto-border p-3 cursor-pointer transition-all ${
-                    currentRole === "LAB"
-                      ? "bg-[#fee2e2] border-[var(--color-brand)] shadow-[3px_3px_0_var(--color-brand)]"
-                      : "bg-[var(--bg-card)] hover:bg-[var(--bg-card-hover)]"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 text-[var(--color-brand)] font-bold text-xs font-mono">
-                    <FlaskConical className="w-4 h-4" /> LAB
-                  </div>
-                  <div className="font-bold text-xs text-[var(--text-main)] mt-1">Dr. Lal PathLabs</div>
-                  <div className="text-[10px] text-[var(--text-muted)] font-mono">NABL: DL-2026-891</div>
+              {/* Lab Card */}
+              <div
+                onClick={() => switchPersona("LAB")}
+                className={`p-3.5 rounded-lg border cursor-pointer transition-all ${
+                  currentRole === "LAB"
+                    ? "border-cyan-600 bg-cyan-50 dark:bg-cyan-950/40 ring-1 ring-cyan-500"
+                    : "border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 text-cyan-600 dark:text-cyan-400 font-bold text-xs">
+                  <FlaskConical className="w-4 h-4" /> DIAGNOSTIC LAB
                 </div>
+                <div className="font-bold text-xs text-slate-900 dark:text-white mt-1">Dr. Lal PathLabs</div>
+                <div className="text-[10px] text-slate-500">NABL: NABL-DL-2026-891</div>
               </div>
             </div>
 
-            {/* Custom Credentials Form */}
-            <div className="border-t border-[var(--border-main)] pt-4">
+            {/* Custom Account Form */}
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between mb-2">
-                <span className="font-mono text-xs font-bold uppercase text-[var(--text-muted)]">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
                   Or Sign In with Custom Account
                 </span>
                 <button
                   onClick={() => setIsRegisterMode(!isRegisterMode)}
-                  className="text-xs font-mono text-[var(--color-brand)] hover:underline"
+                  className="text-xs text-indigo-600 hover:underline"
                 >
                   {isRegisterMode ? "Switch to Login" : "Create New Account"}
                 </button>
               </div>
 
               {authError && (
-                <div className="manifesto-border p-2 bg-[#fee2e2] text-[#d42b2b] text-xs font-mono mb-2">
+                <div className="p-2 rounded bg-red-50 text-red-600 text-xs mb-2">
                   {authError}
                 </div>
               )}
@@ -2236,18 +2275,18 @@ export default function Home() {
                       value={authFullName}
                       onChange={e => setAuthFullName(e.target.value)}
                       required
-                      className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
+                      className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                     />
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="email"
-                    placeholder="Email Address"
+                    placeholder="Email"
                     value={authEmail}
                     onChange={e => setAuthEmail(e.target.value)}
                     required
-                    className="manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
+                    className="p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                   />
                   <input
                     type="password"
@@ -2255,27 +2294,25 @@ export default function Home() {
                     value={authPassword}
                     onChange={e => setAuthPassword(e.target.value)}
                     required
-                    className="manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
+                    className="p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                   />
                 </div>
                 {isRegisterMode && (
-                  <div>
-                    <select
-                      value={authRole}
-                      onChange={e => setAuthRole(e.target.value)}
-                      className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
-                    >
-                      <option value="PATIENT">Patient Account</option>
-                      <option value="DOCTOR">Doctor / Practitioner</option>
-                      <option value="LAB">Diagnostic Lab Staff</option>
-                    </select>
-                  </div>
+                  <select
+                    value={authRole}
+                    onChange={e => setAuthRole(e.target.value)}
+                    className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
+                  >
+                    <option value="PATIENT">Patient Profile</option>
+                    <option value="DOCTOR">Doctor Profile</option>
+                    <option value="LAB">Lab Staff Profile</option>
+                  </select>
                 )}
                 <button
                   type="submit"
-                  className="manifesto-btn-primary w-full py-2 text-xs font-mono font-bold uppercase"
+                  className="btn-primary w-full py-2 text-xs uppercase font-semibold"
                 >
-                  {isRegisterMode ? "Register & Enter Portal" : "Authenticate Account"}
+                  {isRegisterMode ? "Register & Enter" : "Login"}
                 </button>
               </form>
             </div>
@@ -2284,51 +2321,48 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Document Clinical Encounter Modal (Doctor) ── */}
+      {/* ── Document Clinical Encounter Modal ── */}
       {showEncounterModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="manifesto-card w-full max-w-2xl bg-[var(--bg-card)] p-6 shadow-[8px_8px_0_#0a0a0a] space-y-4 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between border-b border-[var(--border-main)] pb-3">
+          <div className="medical-card w-full max-w-xl p-6 space-y-4 max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
               <div>
-                <div className="font-mono text-xs font-bold uppercase text-[var(--color-brand)]">
-                  EHR VISIT DOCUMENTATION
-                </div>
-                <h3 className="font-editorial text-2xl font-bold text-[var(--text-main)]">
-                  Consultation for {selectedPatient?.full_name}
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Document Consultation for {selectedPatient?.full_name}
                 </h3>
               </div>
-              <button onClick={() => setShowEncounterModal(false)} className="manifesto-btn p-1.5">
-                <X className="w-4 h-4" />
+              <button onClick={() => setShowEncounterModal(false)} className="p-1 rounded text-slate-400 hover:text-slate-600">
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreateEncounter} className="space-y-4">
+            <form onSubmit={handleCreateEncounter} className="space-y-3">
               <div>
-                <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                  Reason for Encounter
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Reason for Visit
                 </label>
                 <input
                   type="text"
                   value={encounterReason}
                   onChange={e => setEncounterReason(e.target.value)}
-                  placeholder="e.g. Follow-up consultation for HbA1c review"
-                  className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
+                  placeholder="e.g. Glycemic follow-up, BP review"
+                  className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                 />
               </div>
 
               <div>
-                <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
-                  Search & Select SNOMED CT Concept
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Search & Code SNOMED CT Diagnosis
                 </label>
                 <input
                   type="text"
                   value={snomedSearchQuery}
                   onChange={e => searchSnomed(e.target.value)}
-                  placeholder="Type to search authentic SNOMED CT concepts..."
-                  className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
+                  placeholder="Search condition..."
+                  className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                 />
                 {snomedResults.length > 0 && (
-                  <div className="mt-1 manifesto-border max-h-36 overflow-y-auto bg-[var(--bg-card)]">
+                  <div className="mt-1 max-h-32 overflow-y-auto rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                     {snomedResults.map((item, idx) => (
                       <div
                         key={idx}
@@ -2336,59 +2370,59 @@ export default function Home() {
                           setSelectedSnomed(item);
                           setSnomedResults([]);
                         }}
-                        className="p-2 text-xs hover:bg-[var(--bg-card-hover)] cursor-pointer border-b border-[var(--border-subtle)]"
+                        className="p-2 text-xs hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer border-b border-slate-100 dark:border-slate-800"
                       >
-                        <span className="font-bold">{item.display_name}</span>
-                        <span className="font-mono text-[10px] text-[var(--color-brand)] ml-2">[{item.concept_id}]</span>
+                        <span className="font-semibold text-slate-900 dark:text-white">{item.display_name}</span>
+                        <span className="text-[10px] font-mono text-indigo-600 ml-2">[{item.concept_id}]</span>
                       </div>
                     ))}
                   </div>
                 )}
                 {selectedSnomed && (
-                  <div className="mt-2 text-xs font-mono text-emerald-800 font-bold">
-                    Active Coded Diagnosis: {selectedSnomed.display_name} ({selectedSnomed.concept_id})
+                  <div className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mt-1">
+                    Selected: {selectedSnomed.display_name} ({selectedSnomed.concept_id})
                   </div>
                 )}
               </div>
 
               <div>
-                <label className="block font-mono text-xs font-bold uppercase text-[var(--text-muted)] mb-1">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
                   Clinical Progress Notes
                 </label>
                 <textarea
                   rows={3}
                   value={encounterNotes}
                   onChange={e => setEncounterNotes(e.target.value)}
-                  placeholder="Clinical observations, vital signs assessment, management plan..."
-                  className="w-full manifesto-border p-2 bg-[var(--bg-card)] text-xs font-sans text-[var(--text-main)]"
+                  placeholder="Subjective, Objective, Assessment, Plan..."
+                  className="w-full p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                 />
               </div>
 
-              <div className="border-t border-[var(--border-main)] pt-3">
-                <h4 className="font-mono text-xs font-bold uppercase text-[var(--color-brand)] mb-2">
-                  Prescription Order
-                </h4>
+              <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Prescription
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <input
                     type="text"
                     placeholder="Medication Name"
                     value={rxMedName}
                     onChange={e => setRxMedName(e.target.value)}
-                    className="manifesto-border p-2 text-xs"
+                    className="p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                   />
                   <input
                     type="text"
-                    placeholder="Dosage"
+                    placeholder="Dosage (e.g. 500 mg)"
                     value={rxDosage}
                     onChange={e => setRxDosage(e.target.value)}
-                    className="manifesto-border p-2 text-xs"
+                    className="p-2 rounded border border-slate-200 dark:border-slate-700 text-xs bg-white dark:bg-slate-900"
                   />
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="manifesto-btn-primary w-full py-2.5 text-xs font-mono font-bold uppercase"
+                className="btn-primary w-full py-2.5 text-xs uppercase font-semibold"
               >
                 Sign & Save Encounter
               </button>
@@ -2397,23 +2431,24 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Sovereign Old Regime Architectural Footer ── */}
-      <footer className="bg-[var(--bg-card)] border-t border-[var(--border-main)] py-4 px-6 mt-12 text-xs font-mono text-[var(--text-muted)]">
+      {/* ── Modern Professional Healthcare Footer ── */}
+      <footer className="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 py-4 px-6 mt-12 text-xs text-slate-500 dark:text-slate-400">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <span className="font-bold text-[var(--text-main)]">MedIndia HealthOS</span>
-            <span>&bull;</span>
-            <span>National Health Authority Compliant</span>
-            <span>&bull;</span>
-            <span>SNOMED CT Release 2026</span>
+            <span className="font-bold text-slate-900 dark:text-white">MedIndia HealthOS</span>
+            <span>•</span>
+            <span>National Health Authority (ABDM) Compatible</span>
+            <span>•</span>
+            <span>SNOMED CT International Edition</span>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <span>Security: AES-GCM + SHA-256</span>
-            <span>&bull;</span>
-            <span className="text-emerald-700 font-bold">● Network Sync Healthy</span>
+            <span>•</span>
+            <span className="text-emerald-600 dark:text-emerald-400 font-semibold">● Gateway Connected</span>
           </div>
         </div>
       </footer>
+
     </div>
   );
 }
