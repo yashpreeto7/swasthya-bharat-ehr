@@ -8,7 +8,19 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        editorial: ['"Playfair Display"', 'Georgia', 'serif'],
+        serif: ['"Playfair Display"', 'Georgia', 'serif'],
+        sans: ['"Space Grotesk"', '"Inter"', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+      },
       colors: {
+        brand: {
+          50: '#fef2f2',
+          100: '#fee2e2',
+          500: 'var(--color-brand, #d42b2b)',
+          600: 'var(--color-brand-hover, #b91c1c)',
+        },
         health: {
           50: '#f0fdfa',
           100: '#ccfbf1',
