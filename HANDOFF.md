@@ -78,14 +78,16 @@ EHR Task/
 
 ## 3. Demo Personas & Pre-Seeded Credentials
 
-All accounts are pre-seeded in the database via `execution/seed_demo_data.py`:
+All accounts are pre-seeded in the database via `execution/reset_and_seed_rich_data.py`:
 
 | Role | Name | Email | Password | Identifier / Credentials |
 | :--- | :--- | :--- | :--- | :--- |
-| **Doctor** | Dr. Arvind Swaminathan | `dr.arvind@apollo.in` | `Doctor123!` | NMC: `MCI-74892`, Apollo Indraprastha Hospital |
-| **Patient 1** | Rajesh Sharma | `rajesh.sharma@example.in` | `Password123!` | ABHA: `91-4405-2026-0001`, Address: `rajesh.sharma@abdm` |
-| **Patient 2** | Priya Patel | `priya.patel@example.in` | `Password123!` | ABHA: `91-3836-2026-0002`, Address: `priya.patel@abdm` |
-| **Diagnostic Lab** | Delhi Central Diagnostic Hub | `delhi.lab@lalpathlabs.com` | `Lab12345!` | NABL License: `NABL-DL-2026-891`, Dr. Lal PathLabs |
+| **Doctor** | Dr. Arvind Swaminathan | `dr.arvind@apollo.in` | `Doctor123!` | NMC: `MCI-74892`, Apollo Hospitals (MD Internal Medicine) |
+| **Patient 1** | Rajesh Sharma (52M) | `rajesh.sharma@example.in` | `Password123!` | ABHA: `91-4405-2026-0001` (T2 Diabetes, HTN) |
+| **Patient 2** | Priya Patel (28F) | `priya.patel@example.in` | `Password123!` | ABHA: `91-3836-2026-0002` (Dengue Fever, Thrombocytopenia) |
+| **Patient 3** | Vikramaditya Singh (64M) | `vikram.singh@example.in` | `Password123!` | ABHA: `91-7291-2026-0003` (CAD, Post-PTCA LAD Stent) |
+| **Patient 4** | Ananya Sen (34F) | `ananya.sen@example.in` | `Password123!` | ABHA: `91-5512-2026-0004` (Gestational Diabetes, Hypothyroidism) |
+| **Diagnostic Lab** | Dr. Lal PathLabs Specialist | `delhi.lab@lalpathlabs.com` | `Lab12345!` | NABL License: `NABL-DL-2026-891` |
 
 ---
 
