@@ -19,16 +19,26 @@ def main():
     print("  MedIndia HealthOS — Launching Development Environment")
     print("=" * 60)
 
-    # 1. Seed demo data if not yet seeded
-    seed_cmd = [sys.executable, str(ROOT_DIR / "execution" / "seed_demo_data.py")]
+    # 1. Determine Python / uv invocation
+    import shutil
+    uv_path = shutil.which("uv")
+    if uv_path:
+        seed_cmd = [uv_path, "run", "python", str(ROOT_DIR / "execution" / "seed_demo_data.py")]
+        backend_cmd = [
+            uv_path, "run", "uvicorn", "backend.app.main:app",
+            "--host", "0.0.0.0", "--port", "8000", "--reload"
+        ]
+    else:
+        seed_cmd = [sys.executable, str(ROOT_DIR / "execution" / "seed_demo_data.py")]
+        backend_cmd = [
+            sys.executable, "-m", "uvicorn", "backend.app.main:app",
+            "--host", "0.0.0.0", "--port", "8000", "--reload"
+        ]
+
     print("[1/3] Verifying database and demo scenario data...")
     subprocess.run(seed_cmd, cwd=ROOT_DIR)
 
     # 2. Launch Backend (FastAPI on port 8000)
-    backend_cmd = [
-        sys.executable, "-m", "uvicorn", "backend.app.main:app",
-        "--host", "0.0.0.0", "--port", "8000", "--reload"
-    ]
     print("[2/3] Starting FastAPI Backend on http://localhost:8000 ...")
     backend_proc = subprocess.Popen(backend_cmd, cwd=ROOT_DIR)
 

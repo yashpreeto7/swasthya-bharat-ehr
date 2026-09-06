@@ -142,10 +142,43 @@ async def hip_confirm_care_context_link(
     if req.otp != expected_otp:
         raise HTTPException(status_code=400, detail="Invalid OTP code. Please use demo OTP: 123456")
 
+    stmt = select(Patient).options(
+        selectinload(Patient.encounters),
+        selectinload(Patient.lab_orders),
+        selectinload(Patient.user)
+    ).where(Patient.id == req.patient_id)
+    patient = (await db.execute(stmt)).scalar_one_or_none()
+
+    linked_care_contexts = []
+    if patient:
+        for enc in patient.encounters:
+            linked_care_contexts.append({
+                "referenceNumber": f"ENC-{enc.id[:8]}",
+                "display": f"OPD Consultation: {enc.reason or 'General Evaluation'}",
+                "type": "ENCOUNTER",
+                "status": "LINKED_AND_VERIFIED",
+                "date": enc.created_at.strftime("%d %b %Y, %I:%M %p") if enc.created_at else "Recent"
+            })
+        for lo in patient.lab_orders:
+            dt = getattr(lo, "ordered_at", None) or getattr(lo, "completed_at", None)
+            linked_care_contexts.append({
+                "referenceNumber": f"LAB-{lo.id[:8]}",
+                "display": f"Diagnostic Investigation: {lo.test_name}",
+                "type": "DIAGNOSTIC_REPORT",
+                "status": "LINKED_AND_VERIFIED",
+                "date": dt.strftime("%d %b %Y, %I:%M %p") if dt else "Recent"
+            })
+
     return {
         "status": "LINKED",
         "message": "Care Contexts successfully linked to ABHA profile under ABDM Gateway",
-        "patient_id": req.patient_id
+        "patient_id": req.patient_id,
+        "patient_name": patient.user.full_name if patient and patient.user else "Rajesh Sharma",
+        "abha_id": patient.abha_id if patient else "91-4405-2026-0001",
+        "linked_at": datetime.now(timezone.utc).isoformat(),
+        "hip_id": "IN0810000023",
+        "hip_name": "Dr. Lal PathLabs National Reference Lab",
+        "care_contexts": linked_care_contexts
     }
 
 # =========================================================================

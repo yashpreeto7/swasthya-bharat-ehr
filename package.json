@@ -1,0 +1,14 @@
+{
+  "name": "swasthya-bharat-ehr",
+  "version": "1.0.0",
+  "description": "Swasthya Bharat EHR — ABDM-Compliant National Electronic Health Record Architecture",
+  "private": true,
+  "scripts": {
+    "dev": "python execution/run_dev.py",
+    "dev:frontend": "npm run dev --prefix frontend",
+    "dev:backend": "uv run uvicorn backend.app.main:app --host 127.0.0.1 --port 8000 --reload",
+    "seed": "uv run python execution/reset_and_seed_rich_data.py",
+    "verify": "uv run python execution/verify_backend_api.py",
+    "verify:workflows": "uv run python execution/verify_phase5_workflows.py"
+  }
+}

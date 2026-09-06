@@ -29,6 +29,9 @@ async def parse_clinical_dictation(
 @router.get("/summary/{patient_id}", response_model=ClinicalSummaryResponse)
 async def get_clinical_summary(
     patient_id: str,
+    focus_area: str = "COMPREHENSIVE",
+    time_window: str = "ALL",
+    audience: str = "PHYSICIAN",
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db)
 ):
@@ -47,14 +50,21 @@ async def get_clinical_summary(
             action="AI_GENERATE_CLINICAL_SUMMARY",
             patient_id=patient_id,
             consent_id=consent.id if consent else None,
-            status="SUCCESS"
+            status="SUCCESS",
+            details={"focus_area": focus_area, "audience": audience, "time_window": time_window}
         )
     elif current_user.role == "PATIENT":
         # Check patient ownership
         if current_user.patient_profile and current_user.patient_profile.id != patient_id:
             raise HTTPException(status_code=403, detail="Cannot access another patient's clinical summary")
 
-    res = await ai_service.generate_clinical_summary(patient_id=patient_id, db=db)
+    res = await ai_service.generate_clinical_summary(
+        patient_id=patient_id,
+        db=db,
+        focus_area=focus_area,
+        time_window=time_window,
+        audience=audience
+    )
     return ClinicalSummaryResponse(**res)
 
 @router.post("/query", response_model=AskEHRResponse)

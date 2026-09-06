@@ -135,6 +135,10 @@ class ClinicalSummaryResponse(BaseModel):
     recent_labs: List[str]
     grounded_record_ids: List[str]
     disclaimer: str
+    focus_area: Optional[str] = "COMPREHENSIVE"
+    audience: Optional[str] = "PHYSICIAN"
+    time_window: Optional[str] = "ALL"
+    structured_sections: Optional[Dict[str, Any]] = None
 
 class AskEHRRequest(BaseModel):
     patient_id: str

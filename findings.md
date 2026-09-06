@@ -23,3 +23,12 @@
    - Consent checks are mandatory backend authorization gates, rejecting unauthorized clinician access with 403 Forbidden.
 6. **AI Grounding Protocol**:
    - AI outputs must strictly cite EHR record IDs and never hallucinate clinical history.
+7. **Clinical UI/UX Standards ("Pro Max" Medical Ergonomics)**:
+   - Clinical workstations require visual calm, high information density, and instant clarity.
+   - Frosted glass headers (`backdrop-blur-md`) provide depth without visual noise.
+   - Border radiuses should use natural curvatures (`rounded-xl`, `rounded-2xl`) rather than harsh 1.5px edges.
+   - All color pairings must pass WCAG AA contrast standards in both dark and light modes.
+8. **Clinical Documentation Workflows**:
+   - Real-time encounter documentation must immediately feedback into the clinician's view via optimistic reactive state (`signedEncountersHistory`).
+   - Diagnostic testing workflows must cleanly separate intake queues (pending orders requiring specimen collection and test analysis) from certified archives (NABL ISO 15189 compliance).
+   - Emergency Break-Glass protocols require high-visibility banner warnings and statutory audit trails accessible by the patient.

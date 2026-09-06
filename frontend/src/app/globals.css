@@ -3,14 +3,15 @@
 @tailwind utilities;
 
 :root {
+  --card-surface-opacity: 0.60;
   --bg-base: #f8fafc;
-  --bg-surface: #ffffff;
-  --bg-surface-hover: #f1f5f9;
-  --border-subtle: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --bg-surface: rgba(255, 255, 255, 0.60);
+  --bg-surface-hover: rgba(241, 245, 249, 0.75);
+  --border-subtle: #cbd5e1;
+  --border-strong: #94a3b8;
 
   --text-main: #0f172a;
-  --text-muted: #475569;
+  --text-muted: #334155;
   --text-subtle: #64748b;
 
   --color-primary: #4f46e5;
@@ -20,18 +21,18 @@
   --color-danger: #dc2626;
 
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-card-hover: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.03);
+  --shadow-card: 0 2px 8px -2px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
+  --shadow-card-hover: 0 12px 24px -6px rgba(15, 23, 42, 0.12), 0 4px 8px -2px rgba(15, 23, 42, 0.04);
 }
 
-[data-theme="dark"] {
-  --bg-base: #0b0f19;
-  --bg-surface: #111827;
-  --bg-surface-hover: #1e293b;
-  --border-subtle: #1f2937;
-  --border-strong: #374151;
+.dark, [data-theme="dark"] {
+  --bg-base: #090d16;
+  --bg-surface: rgba(17, 24, 39, 0.60);
+  --bg-surface-hover: rgba(30, 41, 59, 0.75);
+  --border-subtle: #1f293d;
+  --border-strong: #334155;
 
   --text-main: #f8fafc;
   --text-muted: #cbd5e1;
@@ -43,39 +44,35 @@
   --color-teal-hover: #0d9488;
   --color-danger: #ef4444;
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover: 0 10px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -4px rgba(0, 0, 0, 0.3);
+  --shadow-card: 0 2px 10px -2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.2);
+  --shadow-card-hover: 0 12px 24px -4px rgba(0, 0, 0, 0.6), 0 6px 12px -2px rgba(0, 0, 0, 0.3);
 }
 
 body {
   color: var(--text-main);
   background-color: var(--bg-base);
   min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   transition: background-color 0.2s ease, color 0.2s ease;
+  letter-spacing: -0.011em;
 }
 
-/* ── Precise 1.5px Clinical Border Radius System ── */
-button, input, select, textarea, .medical-card, .btn-primary, .btn-secondary, .btn-teal,
-.filter-pill-active, .filter-pill-inactive, .rounded, .rounded-sm, .rounded-md, .rounded-lg, .rounded-xl, .rounded-2xl {
-  border-radius: 1.5px !important;
-}
-
-/* Preserve true circular pills & indicators */
-.rounded-full {
-  border-radius: 9999px !important;
-}
-
-/* ── Modern Professional Cards (Black Drop Shadow & 1.5px Radius) ── */
-.medical-card {
-  background-color: var(--bg-surface);
-  border: 1px solid var(--border-subtle);
-  border-radius: 1.5px !important;
+/* ── Modern Professional Cards (Refined Rounded Corners & Soft Ambient Shadows) ── */
+.medical-card,
+main .medical-card,
+main div.border.rounded-xl,
+main div.border.rounded-2xl,
+main div.rounded-xl.bg-white,
+main div.rounded-2xl.bg-white {
+  background-color: var(--bg-surface) !important;
+  border-radius: 0.875rem; /* 14px */
   box-shadow: var(--shadow-card);
-  transition: all 0.2s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .medical-card:hover {
@@ -83,19 +80,19 @@ button, input, select, textarea, .medical-card, .btn-primary, .btn-secondary, .b
   border-color: var(--border-strong);
 }
 
-/* ── High-Contrast Buttons (1.5px Radius, Black Shadows) ── */
+/* ── High-Contrast Action Buttons with Refined Ergonomic Radii ── */
 .btn-primary {
   background-color: var(--color-primary);
   color: #ffffff !important;
   font-weight: 600;
-  border-radius: 1.5px !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.16);
-  transition: all 0.15s ease;
+  border-radius: 0.625rem; /* 10px */
+  box-shadow: 0 2px 6px 0 rgba(79, 70, 229, 0.25);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-primary:hover {
   background-color: var(--color-primary-hover);
-  box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 12px 0 rgba(79, 70, 229, 0.35);
   transform: translateY(-1px);
 }
 
@@ -103,14 +100,14 @@ button, input, select, textarea, .medical-card, .btn-primary, .btn-secondary, .b
   background-color: var(--color-teal);
   color: #ffffff !important;
   font-weight: 600;
-  border-radius: 1.5px !important;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.16);
-  transition: all 0.15s ease;
+  border-radius: 0.625rem;
+  box-shadow: 0 2px 6px 0 rgba(13, 148, 136, 0.25);
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-teal:hover {
   background-color: var(--color-teal-hover);
-  box-shadow: 0 4px 10px 0 rgba(0, 0, 0, 0.22);
+  box-shadow: 0 4px 12px 0 rgba(13, 148, 136, 0.35);
   transform: translateY(-1px);
 }
 
@@ -118,34 +115,36 @@ button, input, select, textarea, .medical-card, .btn-primary, .btn-secondary, .b
   background-color: var(--bg-surface);
   color: var(--text-main) !important;
   border: 1px solid var(--border-strong);
-  border-radius: 1.5px !important;
+  border-radius: 0.625rem;
   font-weight: 500;
   box-shadow: var(--shadow-sm);
-  transition: all 0.15s ease;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .btn-secondary:hover {
   background-color: var(--bg-surface-hover);
   border-color: var(--text-muted);
+  transform: translateY(-0.5px);
 }
 
-/* ── Active Selection Pill (Guaranteed Contrast & Black Shadow) ── */
+/* ── Active Selection Pills (Smooth Pill Radius & Crisp Contrast) ── */
 .filter-pill-active {
-  background-color: #4f46e5 !important;
+  background-color: var(--color-primary) !important;
   color: #ffffff !important;
-  border: 1px solid #4338ca !important;
-  border-radius: 1.5px !important;
+  border: 1px solid var(--color-primary-hover) !important;
+  border-radius: 9999px !important;
   font-weight: 600 !important;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25) !important;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.28) !important;
 }
 
 .filter-pill-inactive {
   background-color: var(--bg-surface);
   color: var(--text-muted) !important;
   border: 1px solid var(--border-subtle);
-  border-radius: 1.5px !important;
+  border-radius: 9999px !important;
   font-weight: 500;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  transition: all 0.15s ease;
 }
 
 .filter-pill-inactive:hover {
@@ -154,18 +153,54 @@ button, input, select, textarea, .medical-card, .btn-primary, .btn-secondary, .b
   border-color: var(--border-strong);
 }
 
-/* Custom modern scrollbar */
+/* ── Custom Modern Slim Scrollbar ── */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--bg-base);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--border-strong);
-  border-radius: 4px;
+  border-radius: 9999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-subtle);
 }
+
+/* ── Ambient Medical Template Wallpaper (Locked: 70% Opacity • Center Cover • 60% Card Surface) ── */
+:root {
+  --bg-template-opacity: 0.70;
+  --card-surface-opacity: 0.60;
+  --bg-template-size: cover;
+  --bg-template-pos: center center;
+  --bg-template-repeat: no-repeat;
+}
+
+.medical-template-bg {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url('/medical-bg.jpg');
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  opacity: 0.70;
+  transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+[data-theme="dark"] .medical-template-bg,
+.dark .medical-template-bg {
+  opacity: 0.28;
+  filter: invert(0.92) hue-rotate(180deg) brightness(0.9) contrast(1.25);
+}
+
+.medical-template-overlay {
+  display: none;
+}
+

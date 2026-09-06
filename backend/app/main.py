@@ -15,7 +15,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
 
 app = FastAPI(
-    title="MedIndia HealthOS",
+    title="Swasthya Bharat EHR",
     description="ABDM-aligned EHR Prototype with FHIR R4, SNOMED CT, Consent Management, and Grounded AI Copilot",
     version=settings.VERSION,
     lifespan=lifespan
@@ -34,7 +34,7 @@ app.add_middleware(
 @app.get("/")
 async def root():
     return {
-        "app": "MedIndia HealthOS",
+        "app": "Swasthya Bharat EHR",
         "version": settings.VERSION,
         "status": "online",
         "standards": ["ABDM", "FHIR R4", "SNOMED CT"],

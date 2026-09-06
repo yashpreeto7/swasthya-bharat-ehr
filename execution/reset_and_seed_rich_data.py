@@ -255,6 +255,20 @@ async def main():
         )
         db.add_all([obs1_1, obs1_2, obs1_3])
 
+        # Pending Stat Lab Order for Lab Intake Queue
+        lo1_pending = LabOrder(
+            patient_id=p1.id,
+            doctor_id=doc1.id,
+            lab_id=lab.id,
+            test_name="HbA1c & Fasting Plasma Glucose (Stat Requisition)",
+            test_code="43396009",
+            priority="STAT",
+            status="PENDING",
+            clinical_notes="Evaluate acute glycemic variability and evening lethargy",
+            ordered_at=now - timedelta(hours=3)
+        )
+        db.add(lo1_pending)
+
         consent1 = Consent(
             patient_id=p1.id,
             doctor_id=doc1.id,
@@ -387,6 +401,20 @@ async def main():
             observation_date=now - timedelta(days=1)
         )
         db.add(obs2_1)
+
+        # Pending Urgent Lab Order for Lab Intake Queue
+        lo2_pending = LabOrder(
+            patient_id=p2.id,
+            doctor_id=doc1.id,
+            lab_id=lab.id,
+            test_name="Complete Blood Count & Platelet Series (Urgent)",
+            test_code="38362002",
+            priority="URGENT",
+            status="PENDING",
+            clinical_notes="Stat 24-hr dengue platelet recovery evaluation",
+            ordered_at=now - timedelta(hours=1)
+        )
+        db.add(lo2_pending)
 
         consent2 = Consent(
             patient_id=p2.id,

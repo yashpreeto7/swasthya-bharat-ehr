@@ -51,6 +51,12 @@ pnpm-debug.log*
 *.db-wal
 *.db-shm
 
+# Playwright & Browser Recording caches
+.playwright-mcp/
+.tempmediaStorage/
+*.bak
+*.zip
+
 # OS & Editor
 .DS_Store
 Thumbs.db

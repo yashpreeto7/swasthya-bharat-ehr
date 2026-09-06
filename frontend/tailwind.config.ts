@@ -1,6 +1,7 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
+  darkMode: ["class", '[data-theme="dark"]'],
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -11,7 +12,7 @@ const config: Config = {
       fontFamily: {
         editorial: ['"Playfair Display"', 'Georgia', 'serif'],
         serif: ['"Playfair Display"', 'Georgia', 'serif'],
-        sans: ['"Space Grotesk"', '"Inter"', 'system-ui', 'sans-serif'],
+        sans: ['"Inter"', '"Space Grotesk"', 'system-ui', 'sans-serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
       },
       colors: {
@@ -46,6 +47,12 @@ const config: Config = {
           900: '#312e81',
         }
       },
+      boxShadow: {
+        'soft': '0 2px 15px -3px rgba(0, 0, 0, 0.07), 0 10px 20px -2px rgba(0, 0, 0, 0.04)',
+        'soft-lg': '0 10px 25px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -2px rgba(0, 0, 0, 0.04)',
+        'glow-primary': '0 0 20px -5px rgba(99, 102, 241, 0.3)',
+        'glow-teal': '0 0 20px -5px rgba(20, 184, 166, 0.3)',
+      }
     },
   },
   plugins: [],
