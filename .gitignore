@@ -64,3 +64,27 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# Agent Workspace Artifacts & Memory (Omitted from task submission repository)
+.agents/
+skills-lock.json
+Agents.md
+GEMINI.md
+HANDOFF.md
+Task.md
+task_plan.md
+findings.md
+progress.md
+MedIndia_HealthOS_Agent_Prompt.md
+directives/
+
+# Scratch & patch scripts
+execution/apply_*.py
+execution/enhance_*.py
+execution/hoist_*.py
+execution/test_*.py
+execution/verify_all_endpoints.py
+frontend/public/61802.jpg
+frontend/public/bg.jpg
+
+
