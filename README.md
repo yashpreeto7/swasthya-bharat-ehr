@@ -168,40 +168,38 @@ graph TB
     AuditMiddleware --> AuditStore
 ```
 
-### 3-Layer System Layout
+### Clean Production Repository Layout
 
 ```
-├── directives/                # Layer 1: Standard Operating Procedures (SOPs)
-│   ├── 00_master_roadmap.md
-│   ├── 01_project_scaffolding.md
-│   ├── 02_auth_and_rbac.md
-│   ├── 03_patient_management.md
-│   ├── 04_clinical_encounters.md
-│   ├── 05_consent_management.md
-│   ├── 06_fhir_r4_interoperability.md
-│   ├── 07_reminders_and_notifications.md
-│   └── 08_audit_and_compliance.md
-├── execution/                 # Layer 2: Deterministic Python Execution Scripts
+├── docs/                      # Visual Documentation & Product Media
+│   └── assets/                # Light-Mode Screenshots & Animated Walkthrough
+├── execution/                 # Deterministic Python Runners & Verification Suites
 │   ├── run_dev.py             # Single-command dev launcher
-│   ├── verify_env.py          # Environment verification
-│   ├── verify_backend_api.py  # 16-point integration & security test suite
 │   ├── reset_and_seed_rich_data.py # Rich Indian healthcare clinical seeder
+│   ├── verify_backend_api.py  # 16-point integration & security test suite
+│   ├── verify_env.py          # Environment verification
 │   └── verify_phase5_workflows.py # Clinical workflow verifier
-├── backend/                   # Layer 3: FastAPI Modular Monolith
+├── backend/                   # FastAPI Modular Monolith Backend
 │   ├── app/
 │   │   ├── api/v1/            # Domain API routers (abdm, ai, consent, doctors, etc.)
 │   │   ├── core/              # Config, security, database session
-│   │   ├── fhir/              # FHIR R4 serializers (Patient, Bundle, etc.)
-│   │   ├── models/            # 15 SQLAlchemy domain models
+│   │   ├── fhir/              # NRCES FHIR R4 serializers
+│   │   ├── models/            # 15 SQLAlchemy domain entities
 │   │   ├── schemas/           # Pydantic validation schemas
-│   │   ├── services/          # Business logic & Grounded AI service
+│   │   ├── services/          # Grounded AI & business logic services
 │   │   └── terminology/       # SNOMED CT terminology catalog
-│   └── Dockerfile
-└── frontend/                  # Layer 3: Next.js 14 Healthcare Portal
-    ├── src/app/               # App Router, Layout, Tailwind tokens
-    ├── src/lib/               # Offline queue manager & API client
-    ├── public/                # Static clinical assets & background artwork
-    └── vercel.json            # Vercel deployment configuration
+│   ├── Dockerfile
+│   └── requirements.txt
+├── frontend/                  # Next.js 14 App Router Healthcare Portal
+│   ├── src/app/               # Pages, Layout, Tailwind tokens
+│   ├── src/components/        # Reusable clinical UI components
+│   ├── src/lib/               # Offline queue manager & API client
+│   ├── public/                # Static clinical assets & background artwork
+│   ├── package.json           # Frontend dependencies
+│   └── vercel.json            # Vercel deployment configuration
+├── docker-compose.yml         # Full-stack container orchestration
+├── package.json               # Root convenience runner
+└── vercel.json                # Root Vercel deployment configuration
 ```
 
 ---
