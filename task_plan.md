@@ -105,6 +105,23 @@
 - [x] Compacted Rural PHC connectivity indicator and doctor persona switcher into streamlined single-line pills
 - [x] Verified in browser via Playwright in both light and dark modes with 100% interactive responsiveness
 
+### Phase 10: GitHub Repository, Visual Assets & Submission Documentation [COMPLETE]
+- [x] Created public GitHub repository: `https://github.com/yashpreeto7/swasthya-bharat-ehr`
+- [x] Configured Vercel deployment readiness (`frontend/vercel.json`, root `vercel.json`, Next.js 14 production build verified 4/4 static pages)
+- [x] Captured 8 high-resolution Light Mode screenshots in `docs/assets/screenshots/`:
+  1. `01_doctor_workstation.png`
+  2. `02_encounter_snomed_ai.png`
+  3. `03_clinical_ai_copilot.png`
+  4. `04_abdm_hiu_transfer.png`
+  5. `05_fhir_r4_inspector.png`
+  6. `06_patient_abha_card.png`
+  7. `07_lab_operations_queue.png`
+  8. `08_emergency_break_glass.png`
+- [x] Recorded interactive Light Mode walkthrough video (`docs/assets/walkthrough_demo.webp`) via `browser_subagent`
+- [x] Created exhaustive, submission-grade `README.md` with problem statement, screenshot showcase, system architecture Mermaid diagram, 3-layer layout, Vercel instructions, and verification report
+- [x] Added MIT `LICENSE`
+- [x] Staged, committed, and pushed complete codebase to GitHub `main` branch
+
 ## Errors Encountered & Solutions
 | Error | Cause | Resolution |
 |---|---|---|
