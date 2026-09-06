@@ -1,20 +1,20 @@
-rversion: "3.8"
+version: "3.8"
 
 services:
   db:
     image: postgres:16-alpine
-    container_name: medindia-db
+    container_name: swasthya-db
     restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgrespassword
-      POSTGRES_DB: medindia_healthos
+      POSTGRES_DB: swasthya_bharat_ehr
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d medindia_healthos"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d swasthya_bharat_ehr"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,15 +23,15 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: medindia-backend
+    container_name: swasthya-backend
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/medindia_healthos
+      - DATABASE_URL=postgresql+asyncpg://postgres:postgrespassword@db:5432/swasthya_bharat_ehr
       - ENVIRONMENT=production
-      - JWT_SECRET_KEY=medindia_jwt_secret_key_prod_2026
+      - JWT_SECRET_KEY=swasthya_jwt_secret_key_prod_2026
       - CORS_ORIGINS=["http://localhost:3000"]
     ports:
       - "8000:8000"
@@ -40,7 +40,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: medindia-frontend
+    container_name: swasthya-frontend
     restart: unless-stopped
     depends_on:
       - backend
@@ -51,3 +51,4 @@ services:
 
 volumes:
   postgres_data:
+
