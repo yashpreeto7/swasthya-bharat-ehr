@@ -14,18 +14,8 @@
 
 **A production-grade, standards-compliant Electronic Health Record (EHR) and Health Information Exchange (HIE) platform engineered for the Indian public and private healthcare ecosystem.**
 
-[Live Walkthrough](#-interactive-product-walkthrough) • [Core Capabilities](#-core-capabilities--screenshot-walkthrough) • [Architecture](#-system-architecture) • [Quickstart](#-quickstart--local-development) • [Vercel Deployment](#-deploying-to-vercel) • [API Reference](#-api-specification)
+[Core Capabilities](#-core-capabilities--screenshot-walkthrough) • [Architecture](#-system-architecture) • [Quickstart](#-quickstart--local-development) • [Vercel Deployment](#-deploying-to-vercel) • [API Reference](#-api-specification)
 
-</div>
-
----
-
-## 📽️ Interactive Product Walkthrough
-
-> Multi-role clinical navigation across the Doctor Consultation Workstation, Grounded Clinical AI Copilot, ABDM HIU Data Exchange, HL7 FHIR R4 Bundle Inspector, and Ayushman Bharat Digital Health Account (ABHA) Patient Portal.
-
-<div align="center">
-  <img src="docs/assets/walkthrough_demo.webp" alt="Swasthya Bharat EHR Animated Walkthrough" width="100%" style="border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;" />
 </div>
 
 ---
@@ -171,8 +161,8 @@ graph TB
 ### Clean Production Repository Layout
 
 ```
-├── docs/                      # Visual Documentation & Product Media
-│   └── assets/                # Light-Mode Screenshots & Animated Walkthrough
+├── docs/                      # Visual Documentation & Architecture Media
+│   └── assets/screenshots/    # Light-Mode Clinical Module Screenshots
 ├── execution/                 # Deterministic Python Runners & Verification Suites
 │   ├── run_dev.py             # Single-command dev launcher
 │   ├── reset_and_seed_rich_data.py # Rich Indian healthcare clinical seeder
