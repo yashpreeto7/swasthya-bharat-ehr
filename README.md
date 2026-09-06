@@ -188,8 +188,7 @@ graph TB
 │   ├── package.json           # Frontend dependencies
 │   └── vercel.json            # Vercel deployment configuration
 ├── docker-compose.yml         # Full-stack container orchestration
-├── package.json               # Root convenience runner
-└── vercel.json                # Root Vercel deployment configuration
+└── package.json               # Root convenience runner
 ```
 
 ---
@@ -250,14 +249,23 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 The frontend is built with Next.js 14 and includes **dual-mode offline/online fallback intelligence**: when deployed to Vercel without an active backend, it automatically activates its **Local Resilient Simulation Mode**, rendering the full 4-patient roster, longitudinal records, interactive persona switcher, and grounded AI briefs instantly.
 
 ### One-Click Vercel Deployment
+
+> [!IMPORTANT]
+> Because this repository houses both the FastAPI backend and Next.js frontend, **you must set the Root Directory to `frontend`** on Vercel so Vercel detects the Next.js `package.json`.
+
+**For New Deployments:**
 1. Import this repository into **[Vercel](https://vercel.com/)**.
-2. Set **Root Directory** to `frontend`.
-3. Framework Preset will auto-detect as **Next.js**.
-4. (Optional) Set Environment Variable:
-   ```env
-   NEXT_PUBLIC_API_URL=https://your-backend-domain.com
-   ```
-5. Click **Deploy**.
+2. On the **Configure Project** screen, click **Edit** next to **Root Directory**.
+3. Select or type `frontend` and click **Continue**.
+4. Framework Preset will auto-detect as **Next.js**.
+5. (Optional) Set Environment Variable: `NEXT_PUBLIC_API_URL=https://your-backend-api.com`
+6. Click **Deploy**.
+
+**For Existing Vercel Projects:**
+1. Go to your project in the **Vercel Dashboard**.
+2. Navigate to **Settings** > **General** > **Root Directory**.
+3. Click **Edit**, enter `frontend`, and click **Save**.
+4. Go to **Deployments** and click **Redeploy**.
 
 ---
 
