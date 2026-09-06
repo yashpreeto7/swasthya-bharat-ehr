@@ -185,8 +185,7 @@ graph TB
 │   ├── src/components/        # Reusable clinical UI components
 │   ├── src/lib/               # Offline queue manager & API client
 │   ├── public/                # Static clinical assets & background artwork
-│   ├── package.json           # Frontend dependencies
-│   └── vercel.json            # Vercel deployment configuration
+│   └── package.json           # Frontend dependencies
 ├── docker-compose.yml         # Full-stack container orchestration
 └── package.json               # Root convenience runner
 ```
